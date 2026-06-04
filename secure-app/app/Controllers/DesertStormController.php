@@ -4,6 +4,7 @@ namespace App\Controllers;
 
 use App\Models\EventModel;
 use App\Models\EventPlanModel;
+use App\Models\UserModel;
 
 class DesertStormController extends BaseController
 {
@@ -61,15 +62,15 @@ class DesertStormController extends BaseController
                         $powerTank = isset($u['power_tank']) ? (float)$u['power_tank'] : 0.00;
                         $powerAir = isset($u['power_air']) ? (float)$u['power_air'] : 0.00;
                         $powerMissile = isset($u['power_missile']) ? (float)$u['power_missile'] : 0.00;
-                        $maxPower = max($powerTank, $powerAir, $powerMissile);
+                        $totalPower = $powerTank + $powerAir + $powerMissile;
                         
                         $displayName = !empty($u['player_name']) ? $u['player_name'] : $u['username'];
 
                         $formattedPlayers[] = [
                             'id'    => $stringId,
                             'name'  => $displayName,
-                            'power' => $maxPower > 0 ? number_format($maxPower, 2) : '0.00',
-                            'power_raw' => $maxPower, // for sorting
+                            'power' => $totalPower > 0 ? number_format($totalPower, 2) : '0.00',
+                            'power_raw' => $totalPower, // for sorting
                             'box'   => 'unassigned' // Newly joined users start unassigned
                         ];
                     }
@@ -121,10 +122,19 @@ class DesertStormController extends BaseController
             return $powB <=> $powA;
         });
 
+        // Fetch all approved users for the "Available Roster"
+        $userModel = new UserModel();
+        $availableRoster = $userModel->select('users.id, users.username, users.player_name, (user_stats.power_tank + user_stats.power_air + user_stats.power_missile) as total_power')
+                                     ->join('user_stats', 'user_stats.user_id = users.id', 'left')
+                                     ->where('users.status', 'approved')
+                                     ->orderBy('total_power', 'DESC')
+                                     ->findAll();
+
         $userRole = session()->get('role');
         $data = [
             'title'            => 'Desert Storm Alliance Planner',
             'players_json'     => json_encode($formattedPlayers),
+            'available_roster' => $availableRoster,
             'event_id'         => $eventId,
             'current_plan'     => $currentPlan,
             'historical_plans' => $historicalPlans,

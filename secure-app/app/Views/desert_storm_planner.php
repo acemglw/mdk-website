@@ -13,6 +13,7 @@
 
     // We pass the dynamic PHP data directly into the React scope via globals
     const INITIAL_PLAYERS = <?= $players_json ?>;
+    const AVAILABLE_ROSTER = <?= json_encode($available_roster) ?>;
     const EVENT_ID = <?= $event_id ?>;
     const IS_ADMIN = <?= $is_admin ? 'true' : 'false' ?>;
     const HISTORICAL_PLANS = <?= json_encode($historical_plans) ?>;
@@ -62,6 +63,7 @@
     function DesertStormPlanner() {
         const [players, setPlayers] = useState(INITIAL_PLAYERS);
         const [selectedPlayer, setSelectedPlayer] = useState(null);
+        const [activePlayerList, setActivePlayerList] = useState([]);
         
         // These are for manually adding players not in the DB
         const [newPlayerName, setNewPlayerName] = useState('');
@@ -165,9 +167,78 @@
             setShowExportModal(true);
         };
 
+        const addToActiveList = (player) => {
+            const playerWithPower = INITIAL_PLAYERS.find(p => String(p.id) === String(player.id)) || player;
+            setActivePlayerList(prev => [...prev, { ...playerWithPower, targetBox: 'auto' }]);
+        };
+
+        const removeFromActiveList = (playerId) => {
+            setActivePlayerList(prev => prev.filter(p => String(p.id) !== String(playerId)));
+        };
+
+        const updateActivePlayerTargetBox = (playerId, targetBox) => {
+            setActivePlayerList(prev => prev.map(p => String(p.id) === String(playerId) ? { ...p, targetBox } : p));
+        };
+
+        const autoDistribute = () => {
+            let remainingPlayers = [...activePlayerList];
+            let updatedBoardPlayers = [...players];
+
+            // 1. Handle players with pre-assigned targets (e.g., 'Subs')
+            const specificAssignments = remainingPlayers.filter(p => p.targetBox !== 'auto');
+            specificAssignments.forEach(p => {
+                const playerIndex = updatedBoardPlayers.findIndex(boardP => String(boardP.id) === String(p.id));
+                if (playerIndex !== -1) {
+                    updatedBoardPlayers[playerIndex].box = p.targetBox;
+                } else {
+                    updatedBoardPlayers.push({ ...p, box: p.targetBox });
+                }
+            });
+
+            // 2. Get players for auto-distribution and sort them by power
+            let autoPlayers = remainingPlayers.filter(p => p.targetBox === 'auto');
+            autoPlayers.sort((a, b) => (b.power_raw || 0) - (a.power_raw || 0));
+
+            // 3. Assign strongest players to the Green box
+            const totalAutoPlayers = autoPlayers.length;
+            const numBoxes = 5; // green, blue, red, yellow, purple
+            const greenBoxCount = Math.ceil(totalAutoPlayers / numBoxes);
+            const strongestForGreen = autoPlayers.splice(0, greenBoxCount);
+
+            strongestForGreen.forEach(p => {
+                const playerIndex = updatedBoardPlayers.findIndex(boardP => String(boardP.id) === String(p.id));
+                if (playerIndex !== -1) {
+                    updatedBoardPlayers[playerIndex].box = 'green';
+                } else {
+                    updatedBoardPlayers.push({ ...p, box: 'green' });
+                }
+            });
+
+            // 4. Distribute the rest of the players round-robin to other boxes
+            const otherBoxes = ['blue', 'red', 'yellow', 'purple'];
+            let boxIndex = 0;
+
+            autoPlayers.forEach(p => {
+                const playerIndex = updatedBoardPlayers.findIndex(boardP => String(boardP.id) === String(p.id));
+                if (playerIndex !== -1) {
+                    updatedBoardPlayers[playerIndex].box = otherBoxes[boxIndex];
+                } else {
+                    updatedBoardPlayers.push({ ...p, box: otherBoxes[boxIndex] });
+                }
+                boxIndex = (boxIndex + 1) % otherBoxes.length;
+            });
+
+            setPlayers(updatedBoardPlayers);
+            setActivePlayerList([]); // Clear the list after distribution
+        };
+
         const allSubs = players.filter(p => p.box === 'subs');
         const leftSubs = allSubs.slice(0, 11); 
         const rightSubs = allSubs.slice(11);
+
+        const availableRosterFiltered = AVAILABLE_ROSTER.filter(
+            p => !activePlayerList.some(ap => String(ap.id) === String(p.id))
+        );
 
         return (
             <div className="flex flex-col lg:flex-row h-screen w-screen overflow-hidden p-4 gap-4 z-10 relative">
@@ -297,7 +368,7 @@
                                                     className={`px-2 py-0.5 rounded text-[10px] font-medium flex items-center justify-center gap-1.5 shadow-sm border ${selectedPlayer?.id === p.id ? 'bg-amber-500 border-amber-400 text-slate-950 scale-105 font-bold' : 'bg-slate-950/90 border-slate-800 text-slate-200'} z-30 shrink-0 min-w-[75px] max-w-[105px]`}
                                                 >
                                                     <span className="truncate max-w-[65px]" title={p.name}>{p.name}</span>
-                                                    <span className="text-[8px] text-amber-400 font-mono shrink-0">{p.power}</span>
+                                                    <span className="text-[10px] text-amber-400 font-mono shrink-0">{p.power}</span>
                                                 </div>
                                             ))}
                                         </div>
@@ -346,31 +417,55 @@
                         </form>
                     </div>
 
-                    {/* Add User via UI (Optional Quick Form for temp users) */}
-                    <form onSubmit={addPlayer} className="bg-slate-900/90 border border-slate-800 p-4 rounded-xl flex flex-col gap-3 shrink-0 backdrop-blur-sm">
-                        <h3 className="text-sm font-bold text-white">Temporary Add</h3>
-                        <div className="flex gap-2">
-                            <input type="text" placeholder="Name" value={newPlayerName} onChange={e => setNewPlayerName(e.target.value)} className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200" />
-                            <input type="number" placeholder="Power" value={newPlayerPower} onChange={e => setNewPlayerPower(e.target.value)} className="w-20 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-slate-200" />
-                            <button type="submit" className="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 text-xs py-1.5 rounded-lg font-bold border border-slate-700 cursor-pointer">+</button>
-                        </div>
-                    </form>
-
-                    <div className="flex-1 bg-slate-900/90 border border-slate-800 rounded-xl flex flex-col overflow-hidden backdrop-blur-sm">
+                    {/* Active Player List Builder */}
+                    <div className="bg-slate-900/90 border border-slate-800 rounded-xl flex flex-col overflow-hidden backdrop-blur-sm">
                         <div className="p-4 border-b border-slate-800 bg-slate-900/50 flex justify-between items-center">
-                            <h2 className="text-sm font-bold text-amber-400">Available Active Roster</h2>
+                            <h2 className="text-sm font-bold text-amber-400">Active Player List</h2>
+                            <button onClick={autoDistribute} disabled={activePlayerList.length === 0} className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1 rounded-lg font-bold text-xs transition shadow-lg disabled:bg-slate-700 disabled:text-slate-500">
+                                Auto-Distribute
+                            </button>
                         </div>
-                        <div onClick={() => assignToBox('unassigned')} className="flex-1 p-3 overflow-y-auto flex flex-col gap-2 min-h-[200px]">
-                            {players.filter(p => p.box === 'unassigned').map(p => (
+                        <div className="flex-1 p-3 overflow-y-auto flex flex-col gap-2 min-h-[150px] max-h-[250px]">
+                            {activePlayerList.map(p => (
+                                <div key={p.id} className="p-2 rounded-lg bg-slate-950 border border-slate-800 text-xs flex justify-between items-center">
+                                    <div className="flex flex-col">
+                                        <span className="font-bold">{p.name || p.player_name || p.username}</span>
+                                        <span className="text-[10px] text-amber-400 font-mono">{p.power}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <select 
+                                            value={p.targetBox} 
+                                            onChange={(e) => updateActivePlayerTargetBox(p.id, e.target.value)}
+                                            className="bg-slate-800 border border-slate-700 rounded px-1 py-0.5 text-xs text-amber-300"
+                                        >
+                                            <option value="auto">Auto</option>
+                                            <option value="subs">Subs</option>
+                                        </select>
+                                        <button onClick={() => removeFromActiveList(p.id)} className="text-rose-400 hover:text-rose-300">✕</button>
+                                    </div>
+                                </div>
+                            ))}
+                            {activePlayerList.length === 0 && <p className="text-center text-xs text-slate-500 italic p-4">Select players from the roster below.</p>}
+                        </div>
+                    </div>
+
+                    {/* Available Roster */}
+                    <div className="flex-1 bg-slate-900/90 border border-slate-800 rounded-xl flex flex-col overflow-hidden backdrop-blur-sm">
+                        <div className="p-4 border-b border-slate-800 bg-slate-900/50">
+                            <h2 className="text-sm font-bold text-white">Available Roster</h2>
+                        </div>
+                        <div className="flex-1 p-3 overflow-y-auto flex flex-col gap-2">
+                            {availableRosterFiltered.map(p => (
                                 <div 
                                     key={p.id}
-                                    onClick={(e) => { e.stopPropagation(); handlePlayerClick(p); }}
-                                    className={`p-2.5 rounded-lg border text-xs flex justify-between items-center cursor-pointer ${selectedPlayer?.id === p.id ? 'bg-amber-500 border-amber-400 text-slate-950 font-bold' : 'bg-slate-950 border-slate-800 text-slate-300'}`}
+                                    onClick={() => addToActiveList(p)}
+                                    className="p-2.5 rounded-lg border bg-slate-950 border-slate-800 text-xs flex justify-between items-center cursor-pointer hover:bg-slate-800"
                                 >
-                                    <span>{p.name} <span className="text-[10px] text-amber-500 font-mono ml-1">({p.power})</span></span>
-                                    {p.id.startsWith('manual_') && (
-                                        <button type="button" onClick={(e) => removePlayer(p.id, e)} className="text-slate-500 hover:text-rose-400 p-1">✕</button>
-                                    )}
+                                    <div className="flex flex-col">
+                                        <span className="font-bold">{p.player_name || p.username}</span>
+                                        <span className="text-[10px] text-amber-400 font-mono">{parseFloat(p.total_power).toFixed(2)}</span>
+                                    </div>
+                                    <button className="text-emerald-400 hover:text-emerald-300">+</button>
                                 </div>
                             ))}
                         </div>
