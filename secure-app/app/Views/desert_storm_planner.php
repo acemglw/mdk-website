@@ -282,6 +282,9 @@
                             <button type="button" onClick={generateExportText} className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg font-medium text-sm transition shadow-lg cursor-pointer">
                                 📋 Export Text
                             </button>
+                            <a href="/ds_planner_mobile" className="bg-slate-700 hover:bg-slate-600 text-slate-200 px-4 py-2 rounded-lg font-medium text-sm transition shadow-lg cursor-pointer flex items-center gap-1 ml-2">
+                                📱 Mobile View
+                            </a>
                         </div>
                     </div>
 

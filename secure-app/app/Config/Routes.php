@@ -26,6 +26,8 @@ $routes->get('/dashboard', 'DashboardController::index', ['filter' => 'pageAuth'
 // Desert Storm Planner Routes (Requires standard authentication)
 $routes->get('/ds_planner', 'DesertStormController::index', ['filter' => 'pageAuth']);
 $routes->post('/ds_planner/save', 'DesertStormController::saveAssignments', ['filter' => 'pageAuth:admin']);
+$routes->get('/ds_planner_mobile', 'DesertStormController::mobile', ['filter' => 'pageAuth']);
+
 
 // Canyon Storm Planner Routes (Requires standard authentication)
 $routes->get('/cs_planner', 'CanyonStormController::index', ['filter' => 'pageAuth']);

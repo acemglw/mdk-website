@@ -53,8 +53,10 @@ class Cookie extends BaseConfig
      * --------------------------------------------------------------------------
      *
      * Cookie will only be set if a secure HTTPS connection exists.
+     * Since this app is forced to HTTPS via Nginx and the Config, this MUST be true.
+     * If false, some mobile browsers (like iOS Safari) might refuse the cookie over HTTPS.
      */
-    public bool $secure = false;
+    public bool $secure = true;
 
     /**
      * --------------------------------------------------------------------------
