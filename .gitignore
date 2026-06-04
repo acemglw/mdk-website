@@ -1,0 +1,15 @@
+# IDE settings
+.idea/
+*.iml
+
+# macOS
+.DS_Store
+
+# CodeIgniter specific
+/secure-app/writable/
+/secure-app/tests/_support/_generated/
+/secure-app/.env
+/secure-app/vendor/
+
+# General dependencies
+node_modules/

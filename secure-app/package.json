@@ -1,0 +1,13 @@
+{
+  "name": "lastwar-secure-app",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build:css": "tailwindcss -i ./app/Views/css/input.css -o ./public/css/app.css --minify",
+    "watch:css": "tailwindcss -i ./app/Views/css/input.css -o ./public/css/app.css --watch"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.4.19"
+  }
+}
