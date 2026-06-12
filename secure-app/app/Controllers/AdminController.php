@@ -23,6 +23,7 @@ class AdminController extends BaseController
         return view('admin/approvals', $data);
     }
 
+
     public function updateApprovalStatus()
     {
         $userModel = new UserModel();
