@@ -62,23 +62,24 @@
         </ul>
     </div>
 
-    <!-- Quick Swap Tool for Admins -->
+    <!-- Admin Tools -->
     <?php if (in_array(session()->get('role'), ['admin', 'super_admin'])) : ?>
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        <!-- Cycle Generator -->
-        <div class="bg-slate-800/40 rounded-xl border border-slate-700/50 p-6 shadow-lg">
-            <h3 class="text-lg font-bold text-yellow-500 mb-4 flex items-center gap-2">
-                <span>⏱️</span> Auto-Generate Schedule Cycle
-            </h3>
-            <p class="text-xs text-slate-400 mb-4">Pick a starting player and date. The system will schedule them and everyone below them (1 per day).</p>
+    
+    <!-- Auto-Generate Cycle (Full Width) -->
+    <div class="bg-slate-800/40 rounded-xl border border-slate-700/50 p-6 shadow-lg mb-6">
+        <h3 class="text-lg font-bold text-yellow-500 mb-4 flex items-center gap-2">
+            <span>⏱️</span> Auto-Generate Cycle
+        </h3>
+        <p class="text-xs text-slate-400 mb-4">Evenly distribute players across a date range.</p>
+        
+        <form action="/gold-train/generate-cycle" method="POST" class="flex flex-col md:flex-row gap-4">
+            <?= csrf_field() ?>
             
-            <form action="/gold-train/generate-cycle" method="POST" class="flex flex-col gap-4">
-                <?= csrf_field() ?>
+            <div class="flex-1 space-y-4">
                 <div>
-                    <label class="block text-xs font-bold text-slate-400 mb-1 uppercase tracking-wider">Start Date</label>
-                    <input type="datetime-local" name="start_date" required class="w-full px-4 py-2 bg-slate-950/50 border border-slate-700 rounded-lg focus:outline-none focus:border-yellow-500 text-slate-200 text-sm">
+                    <label class="block text-xs font-bold text-slate-400 mb-1 uppercase tracking-wider">Cycle Name</label>
+                    <input type="text" name="cycle_name" required placeholder="e.g., Season 1 - March" class="w-full px-4 py-2 bg-slate-950/50 border border-slate-700 rounded-lg focus:outline-none focus:border-yellow-500 text-slate-200 text-sm">
                 </div>
-                
                 <div>
                     <label class="block text-xs font-bold text-slate-400 mb-1 uppercase tracking-wider">Starting Player</label>
                     <select name="start_user_id" required class="w-full px-4 py-2 bg-slate-950/50 border border-slate-700 rounded-lg focus:outline-none focus:border-yellow-500 text-slate-200 text-sm appearance-none">
@@ -90,56 +91,150 @@
                         <?php endif; ?>
                     </select>
                 </div>
+            </div>
+
+            <div class="flex-1 space-y-4 flex flex-col">
+                <div class="flex gap-4">
+                    <div class="flex-1">
+                        <label class="block text-xs font-bold text-slate-400 mb-1 uppercase tracking-wider">Start Date & Time</label>
+                        <input type="datetime-local" name="start_date" required class="w-full px-4 py-2 bg-slate-950/50 border border-slate-700 rounded-lg focus:outline-none focus:border-yellow-500 text-slate-200 text-sm">
+                    </div>
+                    <div class="flex-1">
+                        <label class="block text-xs font-bold text-slate-400 mb-1 uppercase tracking-wider">End Date</label>
+                        <input type="date" name="end_date" required class="w-full px-4 py-2 bg-slate-950/50 border border-slate-700 rounded-lg focus:outline-none focus:border-yellow-500 text-slate-200 text-sm">
+                    </div>
+                </div>
                 
                 <div class="mt-auto pt-2">
                     <button type="submit" class="w-full px-6 py-2 bg-gradient-to-r from-yellow-600 to-yellow-500 hover:from-yellow-500 hover:to-yellow-400 text-slate-900 rounded-lg text-sm font-bold transition-all shadow-lg shadow-yellow-900/20">
                         Generate Cycle
                     </button>
                 </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Secondary Admin Tools (Three Columns) -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8 items-stretch">
+        
+        <!-- Load Cycle -->
+        <div class="bg-slate-800/40 rounded-xl border border-slate-700/50 p-6 shadow-lg flex flex-col h-full">
+            <div>
+                <h3 class="text-lg font-bold text-emerald-400 mb-4 flex items-center gap-2">
+                    <span>📂</span> Load Past Cycle
+                </h3>
+                <p class="text-xs text-slate-400 mb-4">View a previously saved cycle schedule.</p>
+            </div>
+            
+            <form action="/gold-train/load-cycle" method="POST" class="flex flex-col flex-1">
+                <?= csrf_field() ?>
+                
+                <div class="mb-4">
+                    <label class="block text-xs font-bold text-slate-400 mb-1 uppercase tracking-wider">Select Cycle</label>
+                    <select name="load_cycle_id" required class="w-full px-4 py-2 bg-slate-950/50 border border-slate-700 rounded-lg focus:outline-none focus:border-emerald-500 text-slate-200 text-sm appearance-none">
+                        <option value="" disabled selected>-- Select a cycle --</option>
+                        <?php if (!empty($availableCycles)): ?>
+                            <?php foreach ($availableCycles as $id => $name): ?>
+                                <option value="<?= esc($id) ?>"><?= esc($name) ?></option>
+                            <?php endforeach; ?>
+                        <?php else: ?>
+                            <option value="" disabled>No historical cycles found.</option>
+                        <?php endif; ?>
+                    </select>
+                </div>
+                
+                <div class="mt-auto pt-2 space-y-2">
+                    <button type="submit" <?= empty($availableCycles) ? 'disabled' : '' ?> class="w-full px-6 py-2 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 disabled:from-slate-600 disabled:to-slate-700 disabled:text-slate-400 text-slate-900 rounded-lg text-sm font-bold transition-all shadow-lg shadow-emerald-900/20">
+                        Load Data
+                    </button>
+                    
+                    <?php if (isset($_GET['load_cycle_id'])): ?>
+                        <a href="/gold-train" class="block w-full text-center px-6 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-sm font-bold transition-colors border border-slate-700">
+                            Clear View (Load Active)
+                        </a>
+                    <?php else: ?>
+                        <div class="h-9"></div> <!-- Placeholder to keep height consistent when clear button is absent -->
+                    <?php endif; ?>
+                </div>
+            </form>
+        </div>
+
+        <!-- Manual Cycle Saver -->
+        <div class="bg-slate-800/40 rounded-xl border border-slate-700/50 p-6 shadow-lg flex flex-col h-full">
+            <div>
+                <h3 class="text-lg font-bold text-teal-400 mb-4 flex items-center gap-2">
+                    <span>✍️</span> Save Manual Cycle
+                </h3>
+                <p class="text-xs text-slate-400 mb-4">Save the current active schedule as a new named cycle for historical tracking.</p>
+            </div>
+            
+            <form action="/gold-train/save-cycle" method="POST" id="manualCycleForm" class="flex flex-col flex-1">
+                <?= csrf_field() ?>
+                
+                <div class="mb-4">
+                    <label class="block text-xs font-bold text-slate-400 mb-1 uppercase tracking-wider">Cycle Name</label>
+                    <input type="text" name="cycle_name" required placeholder="e.g., Special Event Cycle" class="w-full px-4 py-2 bg-slate-950/50 border border-slate-700 rounded-lg focus:outline-none focus:border-teal-500 text-slate-200 text-sm">
+                </div>
+                
+                <input type="hidden" name="scheduled_ids" id="scheduledIdsInput" value="">
+                
+                <p class="text-[10px] text-slate-500 leading-tight mb-4">This will take all players with dates in the table below and snapshot them into the new cycle.</p>
+                
+                <div class="mt-auto pt-2 space-y-2">
+                    <button type="button" onclick="submitManualCycle()" class="w-full px-6 py-2 bg-gradient-to-r from-teal-600 to-teal-500 hover:from-teal-500 hover:to-teal-400 text-slate-900 rounded-lg text-sm font-bold transition-all shadow-lg shadow-teal-900/20">
+                        Save Manual Assignments
+                    </button>
+                    <div class="h-9"></div> <!-- Placeholder for alignment -->
+                </div>
             </form>
         </div>
 
         <!-- Schedule Swap -->
-        <div class="bg-slate-800/40 rounded-xl border border-slate-700/50 p-6 shadow-lg">
-            <h3 class="text-lg font-bold text-sky-400 mb-4 flex items-center gap-2">
-                <span>🔄</span> Swap Player Schedules
-            </h3>
-            <p class="text-xs text-slate-400 mb-4">Select two players currently scheduled in the active cycle to instantly swap their assigned dates.</p>
+        <div class="bg-slate-800/40 rounded-xl border border-slate-700/50 p-6 shadow-lg flex flex-col h-full">
+            <div>
+                <h3 class="text-lg font-bold text-sky-400 mb-4 flex items-center gap-2">
+                    <span>🔄</span> Swap Player Schedules
+                </h3>
+                <p class="text-xs text-slate-400 mb-4">Select two players currently scheduled to instantly swap their assigned dates.</p>
+            </div>
             
-            <form action="/gold-train/swap" method="POST" class="flex flex-col gap-4">
+            <form action="/gold-train/swap" method="POST" class="flex flex-col flex-1">
                 <?= csrf_field() ?>
-                <div>
-                    <label class="block text-xs font-bold text-slate-400 mb-1 uppercase tracking-wider">Player 1</label>
-                    <select name="user_id_1" required class="w-full px-4 py-2 bg-slate-950/50 border border-slate-700 rounded-lg focus:outline-none focus:border-sky-500 text-slate-200 text-sm appearance-none">
-                        <option value="" disabled selected>-- Select first player --</option>
-                        <?php if (!empty($roster) && is_array($roster)): ?>
-                            <?php foreach ($roster as $row): ?>
-                                <?php if ($row['schedule_date']): ?>
-                                    <option value="<?= $row['user_id'] ?>"><?= esc($row['player_name']) ?> (<?= date('M d', strtotime($row['schedule_date'])) ?>)</option>
-                                <?php endif; ?>
-                            <?php endforeach; ?>
-                        <?php endif; ?>
-                    </select>
+                <div class="mb-4 space-y-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-400 mb-1 uppercase tracking-wider">Player 1</label>
+                        <select name="user_id_1" required class="w-full px-4 py-2 bg-slate-950/50 border border-slate-700 rounded-lg focus:outline-none focus:border-sky-500 text-slate-200 text-sm appearance-none">
+                            <option value="" disabled selected>-- Select first player --</option>
+                            <?php if (!empty($roster) && is_array($roster)): ?>
+                                <?php foreach ($roster as $row): ?>
+                                    <?php if ($row['schedule_date']): ?>
+                                        <option value="<?= $row['user_id'] ?>"><?= esc($row['player_name']) ?> (<?= date('M d', strtotime($row['schedule_date'])) ?>)</option>
+                                    <?php endif; ?>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </select>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-xs font-bold text-slate-400 mb-1 uppercase tracking-wider">Player 2</label>
+                        <select name="user_id_2" required class="w-full px-4 py-2 bg-slate-950/50 border border-slate-700 rounded-lg focus:outline-none focus:border-sky-500 text-slate-200 text-sm appearance-none">
+                            <option value="" disabled selected>-- Select second player --</option>
+                            <?php if (!empty($roster) && is_array($roster)): ?>
+                                <?php foreach ($roster as $row): ?>
+                                    <?php if ($row['schedule_date']): ?>
+                                        <option value="<?= $row['user_id'] ?>"><?= esc($row['player_name']) ?> (<?= date('M d', strtotime($row['schedule_date'])) ?>)</option>
+                                    <?php endif; ?>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </select>
+                    </div>
                 </div>
                 
-                <div>
-                    <label class="block text-xs font-bold text-slate-400 mb-1 uppercase tracking-wider">Player 2</label>
-                    <select name="user_id_2" required class="w-full px-4 py-2 bg-slate-950/50 border border-slate-700 rounded-lg focus:outline-none focus:border-sky-500 text-slate-200 text-sm appearance-none">
-                        <option value="" disabled selected>-- Select second player --</option>
-                        <?php if (!empty($roster) && is_array($roster)): ?>
-                            <?php foreach ($roster as $row): ?>
-                                <?php if ($row['schedule_date']): ?>
-                                    <option value="<?= $row['user_id'] ?>"><?= esc($row['player_name']) ?> (<?= date('M d', strtotime($row['schedule_date'])) ?>)</option>
-                                <?php endif; ?>
-                            <?php endforeach; ?>
-                        <?php endif; ?>
-                    </select>
-                </div>
-                
-                <div class="mt-auto pt-2">
+                <div class="mt-auto pt-2 space-y-2">
                     <button type="submit" class="w-full px-6 py-2 bg-gradient-to-r from-sky-600 to-sky-500 hover:from-sky-500 hover:to-sky-400 text-slate-900 rounded-lg text-sm font-bold transition-all shadow-lg shadow-sky-900/20">
                         Swap Dates
                     </button>
+                    <div class="h-9"></div> <!-- Placeholder for alignment -->
                 </div>
             </form>
         </div>
@@ -149,7 +244,12 @@
     <!-- Roster Data Table -->
     <div class="overflow-hidden bg-slate-900/60 rounded-xl border border-slate-700/60 shadow-lg">
         <div class="p-4 border-b border-slate-700/50 flex justify-between items-center bg-slate-800/80">
-            <h4 class="font-bold text-slate-200 text-sm">Alliance Schedule Order</h4>
+            <h4 class="font-bold text-slate-200 text-sm flex items-center gap-2">
+                Alliance Schedule Order
+                <?php if (isset($activeCycleName) && $activeCycleName): ?>
+                    <span class="bg-yellow-500/20 text-yellow-400 border border-yellow-500/50 px-2 py-0.5 rounded text-xs font-mono ml-2">Current Cycle: <?= esc($activeCycleName) ?></span>
+                <?php endif; ?>
+            </h4>
             <input type="text" id="searchInput" onkeyup="filterTable()" placeholder="Search players..." class="px-3 py-1.5 bg-slate-950/50 border border-slate-700 rounded-lg focus:outline-none focus:border-yellow-500 text-slate-200 text-xs w-64 transition-colors">
         </div>
 
@@ -175,7 +275,7 @@
                     <?php if (!empty($roster) && is_array($roster)): ?>
                         <?php $counter = 1; ?>
                         <?php foreach ($roster as $row): ?>
-                            <tr class="hover:bg-slate-800/30 transition-colors roster-row">
+                            <tr class="hover:bg-slate-800/30 transition-colors roster-row" data-user-id="<?= $row['user_id'] ?>">
                                 <td class="px-6 py-4 font-black text-yellow-500" data-value="<?= $counter ?>">#<?= $counter++ ?></td>
                                 <td class="px-6 py-4 font-bold text-slate-200 player-name" data-value="<?= esc(strtolower($row['player_name'] ?: 'unknown')) ?>">
                                     <?= esc($row['player_name'] ?: 'Unknown') ?>
@@ -185,7 +285,7 @@
                                         <?= esc($row['alliance_level']) ?>
                                     </span>
                                 </td>
-                                <td class="px-6 py-4 text-xs font-mono text-slate-400" data-value="<?= esc($row['schedule_date'] ?? 'z') ?>">
+                                <td class="px-6 py-4 text-xs font-mono text-slate-400 schedule-cell" data-value="<?= esc($row['schedule_date'] ?? 'z') ?>">
                                     <?= $row['schedule_date'] ? date('M d, Y H:i', strtotime($row['schedule_date'])) : 'Not Scheduled' ?>
                                 </td>
                                 <td class="px-6 py-4 text-xs text-slate-300" data-value="<?= esc(strtolower($row['mvp_name'] ?? 'none')) ?>">
@@ -259,6 +359,9 @@
                     <form action="/gold-train/update-status" method="POST" class="space-y-4">
                         <?= csrf_field() ?>
                         <input type="hidden" name="user_id" value="<?= $row['user_id'] ?>">
+                        <?php if (isset($_GET['load_cycle_id'])): ?>
+                            <input type="hidden" name="active_cycle_id" value="<?= esc($_GET['load_cycle_id']) ?>">
+                        <?php endif; ?>
                         
                         <div>
                             <label class="block text-xs font-bold text-slate-400 mb-1 uppercase tracking-wider">Schedule Date & Time</label>
@@ -347,6 +450,29 @@
 </style>
 
 <script>
+    // --- Manual Cycle Save Logic ---
+    function submitManualCycle() {
+        const rows = document.querySelectorAll('#rosterTable tbody tr.roster-row');
+        const scheduledUserIds = [];
+
+        rows.forEach(row => {
+            const userId = row.getAttribute('data-user-id');
+            const dateCell = row.querySelector('.schedule-cell');
+            
+            if (userId && dateCell && dateCell.innerText.trim() !== 'Not Scheduled') {
+                scheduledUserIds.push(userId);
+            }
+        });
+
+        if (scheduledUserIds.length === 0) {
+            alert('Cannot save. No players are currently scheduled on the board.');
+            return;
+        }
+
+        document.getElementById('scheduledIdsInput').value = scheduledUserIds.join(',');
+        document.getElementById('manualCycleForm').submit();
+    }
+
     // --- Logic for Rider Exclusivity ---
     function handleRiderSelection(userId, changedSelect) {
         const mvpSelect = document.getElementById('mvpSelect' + userId);

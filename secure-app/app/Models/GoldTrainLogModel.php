@@ -15,6 +15,7 @@ class GoldTrainLogModel extends Model
     protected $allowedFields    = [
         'user_id',
         'cycle_id',
+        'cycle_name',
         'status',
         'mvp_user_id',
         'guardian_user_id',

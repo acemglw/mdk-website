@@ -24,22 +24,46 @@
         </div>
     </div>
 
+    <?php if (session()->getFlashdata('message')) : ?>
+        <div class="bg-emerald-500/10 border border-emerald-500/50 text-emerald-400 p-4 rounded-xl mb-6 text-sm text-center">
+            <?= session()->getFlashdata('message') ?>
+        </div>
+    <?php endif; ?>
+
+    <?php if (session()->getFlashdata('error')) : ?>
+        <div class="bg-rose-500/10 border border-rose-500/50 text-rose-400 p-4 rounded-xl mb-6 text-sm text-center">
+            <?= session()->getFlashdata('error') ?>
+        </div>
+    <?php endif; ?>
+
     <!-- Cycle Filter -->
     <div class="bg-slate-900/40 rounded-xl border border-slate-700/50 p-6 shadow-lg mb-8 flex flex-col md:flex-row items-center justify-between gap-4">
-        <form action="/gold-train/history" method="GET" class="flex items-center gap-4 w-full md:w-auto">
-            <label class="text-xs font-bold text-slate-400 uppercase tracking-wider">Select Cycle:</label>
-            <select name="cycle_id" onchange="this.form.submit()" class="bg-slate-950/80 border border-slate-700 text-slate-200 text-sm rounded-lg px-4 py-2 focus:outline-none focus:border-yellow-500 appearance-none min-w-[250px]">
-                <option value="all" <?= ($selectedCycle === 'all') ? 'selected' : '' ?>>All Historical Records</option>
-                <?php foreach ($availableCycles as $cycle): ?>
-                    <option value="<?= esc($cycle) ?>" <?= ($selectedCycle === $cycle) ? 'selected' : '' ?>>
-                        <?= esc($cycle) ?>
-                    </option>
-                <?php endforeach; ?>
-            </select>
-        </form>
+        <div class="flex items-center gap-4 w-full md:w-auto flex-wrap">
+            <form action="/gold-train/history" method="GET" class="flex items-center gap-4">
+                <label class="text-xs font-bold text-slate-400 uppercase tracking-wider">Select Cycle:</label>
+                <select name="cycle_id" onchange="this.form.submit()" class="bg-slate-950/80 border border-slate-700 text-slate-200 text-sm rounded-lg px-4 py-2 focus:outline-none focus:border-yellow-500 appearance-none min-w-[250px]">
+                    <option value="all" <?= ($selectedCycle === 'all') ? 'selected' : '' ?>>All Historical Records</option>
+                    <?php foreach ($availableCycles as $cycleId => $cycleName): ?>
+                        <option value="<?= esc($cycleId) ?>" <?= ($selectedCycle === $cycleId) ? 'selected' : '' ?>>
+                            <?= esc($cycleName) ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </form>
+
+            <?php if ($selectedCycle !== 'all' && in_array(session()->get('role'), ['admin', 'super_admin'])): ?>
+                <form action="/gold-train/delete-cycle" method="POST" onsubmit="return confirm('Are you absolutely sure you want to permanently delete this cycle and all its historical records? This cannot be undone.');" class="ml-2">
+                    <?= csrf_field() ?>
+                    <input type="hidden" name="cycle_id" value="<?= esc($selectedCycle) ?>">
+                    <button type="submit" class="bg-rose-900/40 hover:bg-rose-900/60 text-rose-400 border border-rose-800 px-4 py-2 rounded-lg text-sm font-bold transition-colors">
+                        Delete This Cycle
+                    </button>
+                </form>
+            <?php endif; ?>
+        </div>
 
         <!-- Summary Stats for selected view -->
-        <div class="flex gap-6 items-center">
+        <div class="flex gap-6 items-center mt-4 md:mt-0">
             <div class="text-center">
                 <span class="block text-2xl font-black text-emerald-400"><?= $stats['completed'] ?></span>
                 <span class="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Successful</span>
@@ -81,7 +105,7 @@
                         <?php foreach ($historyLogs as $row): ?>
                             <tr class="hover:bg-slate-800/30 transition-colors history-row">
                                 <td class="px-6 py-4 text-xs font-mono text-slate-500 search-target" data-value="<?= esc($row['cycle_id']) ?>">
-                                    <?= esc($row['cycle_id']) ?>
+                                    <?= esc($row['cycle_name'] ?? $row['cycle_id']) ?>
                                 </td>
                                 <td class="px-6 py-4 font-bold text-slate-200 search-target" data-value="<?= esc(strtolower($row['player_name'])) ?>">
                                     <?= esc($row['player_name']) ?>

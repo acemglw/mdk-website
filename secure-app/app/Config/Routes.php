@@ -36,8 +36,11 @@ $routes->post('/cs_planner/save', 'CanyonStormController::saveAssignments', ['fi
 // Polar Express (Gold Train) Routes
 $routes->get('/gold-train', 'GoldTrainController::index', ['filter' => 'pageAuth']);
 $routes->get('/gold-train/history', 'GoldTrainController::history', ['filter' => 'pageAuth']);
-$routes->post('/gold-train/update-status', 'GoldTrainController::updateStatus', ['filter' => 'pageAuth']);
+$routes->post('/gold-train/update-status', 'GoldTrainController::updateStatus', ['filter' => 'pageAuth:admin']);
 $routes->post('/gold-train/generate-cycle', 'GoldTrainController::generateCycle', ['filter' => 'pageAuth:admin']);
+$routes->post('/gold-train/save-cycle', 'GoldTrainController::saveCycle', ['filter' => 'pageAuth:admin']);
+$routes->post('/gold-train/load-cycle', 'GoldTrainController::loadCycle', ['filter' => 'pageAuth:admin']);
+$routes->post('/gold-train/delete-cycle', 'GoldTrainController::deleteCycle', ['filter' => 'pageAuth:admin']);
 $routes->post('/gold-train/reset', 'GoldTrainController::resetRoster', ['filter' => 'pageAuth:admin']);
 $routes->post('/gold-train/swap', 'GoldTrainController::swapSchedule', ['filter' => 'pageAuth:admin']);
 $routes->post('/gold-train/shift-down', 'GoldTrainController::shiftDown', ['filter' => 'pageAuth:admin']); // NEW SHIFT DOWN ROUTE

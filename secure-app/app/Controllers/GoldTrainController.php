@@ -33,12 +33,22 @@ class GoldTrainController extends BaseController
         try {
             $trainModel = new GoldTrainLogModel();
             
-            // Fetch the most recent active cycle ID, if any.
-            $latestCycle = $trainModel->orderBy('created_at', 'DESC')->first();
-            $activeCycleId = $latestCycle ? $latestCycle['cycle_id'] : null;
+            // Allow loading a specific cycle, otherwise use the most recent
+            $loadedCycleId = $this->request->getGet('load_cycle_id');
+            
+            if ($loadedCycleId) {
+                $latestCycle = $trainModel->where('cycle_id', $loadedCycleId)->first();
+                $activeCycleId = $loadedCycleId;
+            } else {
+                $latestCycle = $trainModel->orderBy('created_at', 'DESC')->first();
+                $activeCycleId = $latestCycle ? $latestCycle['cycle_id'] : null;
+            }
+            
+            $data['activeCycleName'] = $latestCycle ? ($latestCycle['cycle_name'] ?? $latestCycle['cycle_id']) : null;
+            $data['activeCycleId'] = $activeCycleId;
             
             foreach ($allUsers as $user) {
-                // Get their most recent log entry for the CURRENT ACTIVE CYCLE ONLY
+                // Get their log entry for the selected cycle
                 if ($activeCycleId) {
                     $log = $trainModel->where('user_id', $user['id'])
                                       ->where('cycle_id', $activeCycleId)
@@ -63,6 +73,14 @@ class GoldTrainController extends BaseController
                     'guardian_name' => ($log && !empty($log['guardian_user_id'])) ? ($nameMap[$log['guardian_user_id']] ?? 'Unknown') : null,
                 ];
             }
+
+            // Fetch all unique cycles for the "Load Cycle" dropdown
+            $cycles = $trainModel->select('cycle_id, MAX(cycle_name) as cycle_name')->groupBy('cycle_id')->orderBy('MAX(created_at)', 'DESC')->findAll();
+            $data['availableCycles'] = [];
+            foreach ($cycles as $c) {
+                $data['availableCycles'][$c['cycle_id']] = $c['cycle_name'] ?? $c['cycle_id'];
+            }
+
         } catch (\Exception $e) {
             // If the table doesn't exist, just build the base roster without logs
             foreach ($allUsers as $user) {
@@ -81,10 +99,25 @@ class GoldTrainController extends BaseController
                     'guardian_name' => null,
                 ];
             }
+            $data['availableCycles'] = [];
         }
 
-        // Sort by rank value (highest first), then by name
+        // Sort by schedule_date (ASC), then by rank value (DESC), then by name
         usort($rosterData, function($a, $b) {
+            $dateA = strtotime($a['schedule_date']);
+            $dateB = strtotime($b['schedule_date']);
+
+            if ($dateA && $dateB) {
+                return $dateA - $dateB;
+            }
+            if ($dateA) {
+                return -1; // A has a date, B does not, so A comes first
+            }
+            if ($dateB) {
+                return 1; // B has a date, A does not, so B comes first
+            }
+
+            // If neither has a date, sort by rank then name
             if ($a['rank_val'] == $b['rank_val']) {
                 return strcmp(strtolower($a['player_name']), strtolower($b['player_name']));
             }
@@ -104,11 +137,13 @@ class GoldTrainController extends BaseController
             return redirect()->back()->with('error', 'Unauthorized to generate cycles.');
         }
 
+        $cycleName = $this->request->getPost('cycle_name');
         $startDateStr = $this->request->getPost('start_date');
+        $endDateStr = $this->request->getPost('end_date');
         $startUserId = $this->request->getPost('start_user_id');
 
-        if (!$startDateStr || !$startUserId) {
-            return redirect()->back()->with('error', 'Please provide a start datetime and a user.');
+        if (!$cycleName || !$startDateStr || !$endDateStr || !$startUserId) {
+            return redirect()->back()->with('error', 'Please provide a cycle name, start date, end date, and starting user.');
         }
 
         $userModel = new UserModel();
@@ -141,7 +176,28 @@ class GoldTrainController extends BaseController
             return redirect()->back()->with('error', 'Selected user not found in active roster.');
         }
 
-        $currentDate = new \DateTime($startDateStr);
+        $startDate = new \DateTime($startDateStr);
+        $endDate = new \DateTime($endDateStr);
+        
+        if ($endDate <= $startDate) {
+            return redirect()->back()->with('error', 'End date must be after the start date.');
+        }
+        
+        // Calculate the number of days in the range (inclusive)
+        $interval = $startDate->diff($endDate);
+        $daysInRange = $interval->days + 1;
+        
+        $usersToSchedule = array_slice($allUsers, $startIndex);
+        $numUsers = count($usersToSchedule);
+        
+        if ($numUsers == 0) {
+            return redirect()->back()->with('error', 'No users found to schedule starting from the selected user.');
+        }
+
+        // Calculate how many users per day
+        $usersPerDay = max(1, floor($numUsers / $daysInRange));
+        $remainder = $numUsers % $daysInRange;
+
         $cycleId = 'Cycle-' . date('Ymd-Hi'); // Create a unique batch identifier
 
         $db = \Config\Database::connect();
@@ -156,8 +212,6 @@ class GoldTrainController extends BaseController
             if ($latestCycleRow) {
                 $oldCycleId = $latestCycleRow['cycle_id'];
                 
-                // Fetch anyone in the old cycle who was scheduled or pending and update them to completed.
-                // Assuming they successfully drove their train before the cycle ended.
                 $unfinishedLogs = $trainModel->where('cycle_id', $oldCycleId)
                                              ->whereIn('status', ['pending', 'scheduled'])
                                              ->where('assigned_time IS NOT NULL')
@@ -170,20 +224,33 @@ class GoldTrainController extends BaseController
                 }
             }
             
-            // Generate schedule for everyone starting from the selected index to the bottom
-            for ($i = $startIndex; $i < count($allUsers); $i++) {
-                $trainModel->insert([
-                    'user_id' => $allUsers[$i]['id'],
-                    'cycle_id' => $cycleId,
-                    'status' => 'scheduled',
-                    'assigned_time' => $currentDate->format('Y-m-d H:i:s')
-                ]);
+            // Generate schedule for everyone starting from the selected index
+            $currentDate = clone $startDate;
+            $userIndex = 0;
+            
+            for ($day = 0; $day < $daysInRange; $day++) {
+                // How many users to schedule today?
+                // Add 1 extra user for the first few days to handle remainders evenly
+                $dailyUserCount = $usersPerDay + ($day < $remainder ? 1 : 0);
                 
-                // Increment by exactly 1 day for the next person (time remains the same)
+                for ($i = 0; $i < $dailyUserCount; $i++) {
+                    if ($userIndex < $numUsers) {
+                        $trainModel->insert([
+                            'user_id' => $usersToSchedule[$userIndex]['id'],
+                            'cycle_id' => $cycleId,
+                            'cycle_name' => $cycleName,
+                            'status' => 'scheduled',
+                            'assigned_time' => $currentDate->format('Y-m-d H:i:s')
+                        ]);
+                        $userIndex++;
+                    }
+                }
+                
+                // Move to the next day
                 $currentDate->modify('+1 day');
             }
         } catch (\Exception $e) {
-            return redirect()->back()->with('error', 'Database error: Please run migrations first to create the gold train table.');
+            return redirect()->back()->with('error', 'Database error: Please run migrations first to update the gold train table.');
         }
 
         $db->transComplete();
@@ -192,7 +259,132 @@ class GoldTrainController extends BaseController
             return redirect()->back()->with('error', 'Database error generating cycle.');
         }
 
-        return redirect()->back()->with('message', 'Successfully generated schedule cycle starting from ' . $allUsers[$startIndex]['username'] . '. Previous cycle logs were automatically marked as completed.');
+        return redirect()->back()->with('message', "Successfully generated cycle '{$cycleName}'. {$userIndex} players scheduled across {$daysInRange} days.");
+    }
+
+    public function saveCycle()
+    {
+        $role = session()->get('role');
+        if (!in_array($role, ['admin', 'super_admin'])) {
+            return redirect()->back()->with('error', 'Unauthorized to save cycles.');
+        }
+
+        $cycleName = $this->request->getPost('cycle_name');
+        
+        // This is a comma-separated list of IDs passed from the JS
+        $scheduledIdsStr = $this->request->getPost('scheduled_ids');
+
+        if (!$cycleName || empty($scheduledIdsStr)) {
+            return redirect()->back()->with('error', 'Cycle Name and at least one scheduled player are required.');
+        }
+
+        $scheduledIds = explode(',', $scheduledIdsStr);
+        $cycleId = 'Cycle-' . date('Ymd-Hi');
+        
+        $db = \Config\Database::connect();
+        $db->transStart();
+
+        try {
+            $trainModel = new GoldTrainLogModel();
+            
+            // First, find the active cycle to copy FROM
+            $latestCycleRow = $trainModel->orderBy('created_at', 'DESC')->first();
+            $activeCycleId = $latestCycleRow ? $latestCycleRow['cycle_id'] : null;
+            
+            if (!$activeCycleId) {
+                return redirect()->back()->with('error', 'No active cycle found to save from.');
+            }
+
+            // Mark the old cycle's remaining pending/scheduled ones as completed
+            $unfinishedLogs = $trainModel->where('cycle_id', $activeCycleId)
+                                         ->whereIn('status', ['pending', 'scheduled'])
+                                         ->where('assigned_time IS NOT NULL')
+                                         ->findAll();
+                                         
+            foreach ($unfinishedLogs as $log) {
+                $trainModel->update($log['id'], [
+                    'status' => 'completed'
+                ]);
+            }
+
+            // Now, copy ONLY the specified scheduled users into the new cycle
+            foreach ($scheduledIds as $userId) {
+                // Get their data from the old cycle to copy over
+                $oldLog = $trainModel->where('user_id', $userId)
+                                     ->where('cycle_id', $activeCycleId)
+                                     ->first();
+                                     
+                if ($oldLog && !empty($oldLog['assigned_time'])) {
+                    $trainModel->insert([
+                        'user_id'       => $userId,
+                        'cycle_id'      => $cycleId,
+                        'cycle_name'    => $cycleName,
+                        'status'        => 'scheduled',
+                        'assigned_time' => $oldLog['assigned_time'],
+                        'mvp_user_id'   => $oldLog['mvp_user_id'],
+                        'guardian_user_id' => $oldLog['guardian_user_id']
+                    ]);
+                }
+            }
+        } catch (\Exception $e) {
+            return redirect()->back()->with('error', 'Database error: ' . $e->getMessage());
+        }
+
+        $db->transComplete();
+
+        if ($db->transStatus() === FALSE) {
+            return redirect()->back()->with('error', 'Database error saving the cycle.');
+        }
+
+        return redirect()->back()->with('message', "Successfully saved manual cycle '{$cycleName}'.");
+    }
+
+    public function loadCycle()
+    {
+        $role = session()->get('role');
+        if (!in_array($role, ['admin', 'super_admin'])) {
+            return redirect()->back()->with('error', 'Unauthorized to load cycles.');
+        }
+        
+        $cycleId = $this->request->getPost('load_cycle_id');
+        
+        if (!$cycleId) {
+             return redirect()->back()->with('error', 'Please select a cycle to load.');
+        }
+        
+        return redirect()->to('/gold-train?load_cycle_id=' . urlencode($cycleId));
+    }
+    
+    public function deleteCycle()
+    {
+        $role = session()->get('role');
+        if (!in_array($role, ['admin', 'super_admin'])) {
+            return redirect()->back()->with('error', 'Unauthorized to delete cycles.');
+        }
+
+        $cycleId = $this->request->getPost('cycle_id');
+
+        if (!$cycleId) {
+            return redirect()->back()->with('error', 'No cycle selected for deletion.');
+        }
+
+        try {
+            $trainModel = new GoldTrainLogModel();
+            $trainModel->where('cycle_id', $cycleId)->delete();
+        } catch (\Exception $e) {
+             return redirect()->back()->with('error', 'Database error deleting cycle: ' . $e->getMessage());
+        }
+
+        // If they were viewing the cycle they just deleted, redirect them back to 'all'
+        $redirectUrl = '/gold-train/history';
+        $currentQueryCycle = $this->request->getGet('cycle_id');
+        
+        if ($currentQueryCycle && $currentQueryCycle !== $cycleId && $currentQueryCycle !== 'all') {
+            // Keep them on the cycle they were viewing if it wasn't the one deleted
+             $redirectUrl .= '?cycle_id=' . urlencode($currentQueryCycle);
+        }
+
+        return redirect()->to($redirectUrl)->with('message', 'Cycle deleted successfully.');
     }
 
     public function shiftDown()
@@ -202,12 +394,17 @@ class GoldTrainController extends BaseController
             return redirect()->back()->with('error', 'Unauthorized to shift schedule.');
         }
 
+        // Shift ONLY applies to the cycle currently being viewed
+        $activeCycleId = $this->request->getPost('active_cycle_id');
+
         try {
             $trainModel = new GoldTrainLogModel();
             
-            // Get current active cycle
-            $latestCycle = $trainModel->orderBy('created_at', 'DESC')->first();
-            $activeCycleId = $latestCycle ? $latestCycle['cycle_id'] : null;
+            if (!$activeCycleId) {
+                // Fallback to latest
+                $latestCycle = $trainModel->orderBy('created_at', 'DESC')->first();
+                $activeCycleId = $latestCycle ? $latestCycle['cycle_id'] : null;
+            }
 
             if (!$activeCycleId) {
                 return redirect()->back()->with('error', 'No active cycle found to shift.');
@@ -255,6 +452,7 @@ class GoldTrainController extends BaseController
 
         $user1Id = $this->request->getPost('user_id_1');
         $user2Id = $this->request->getPost('user_id_2');
+        $activeCycleId = $this->request->getPost('active_cycle_id');
 
         if (!$user1Id || !$user2Id || $user1Id === $user2Id) {
             return redirect()->back()->with('error', 'Invalid users selected for swap.');
@@ -263,9 +461,10 @@ class GoldTrainController extends BaseController
         try {
             $trainModel = new GoldTrainLogModel();
             
-            // Get current cycle
-            $latestCycle = $trainModel->orderBy('created_at', 'DESC')->first();
-            $activeCycleId = $latestCycle ? $latestCycle['cycle_id'] : null;
+            if (!$activeCycleId) {
+                $latestCycle = $trainModel->orderBy('created_at', 'DESC')->first();
+                $activeCycleId = $latestCycle ? $latestCycle['cycle_id'] : null;
+            }
 
             if (!$activeCycleId) {
                 return redirect()->back()->with('error', 'No active cycle found to swap within.');
@@ -315,6 +514,7 @@ class GoldTrainController extends BaseController
         $status = $this->request->getPost('status');
         $mvpUserId = $this->request->getPost('mvp_user_id');
         $guardianUserId = $this->request->getPost('guardian_user_id');
+        $activeCycleId = $this->request->getPost('active_cycle_id');
         
         // These are checkboxes, if set they equal 1
         $turnedGold = $this->request->getPost('turned_gold') ? 1 : 0;
@@ -327,9 +527,15 @@ class GoldTrainController extends BaseController
         try {
             $trainModel = new GoldTrainLogModel();
             
-            // Determine active cycle
-            $latestCycle = $trainModel->orderBy('created_at', 'DESC')->first();
-            $activeCycleId = $latestCycle ? $latestCycle['cycle_id'] : 'Manual-Override';
+            if (!$activeCycleId) {
+                // Determine active cycle
+                $latestCycle = $trainModel->orderBy('created_at', 'DESC')->first();
+                $activeCycleId = $latestCycle ? $latestCycle['cycle_id'] : 'Manual-Override';
+            }
+            
+            // Get the name of this specific cycle
+            $cycleRecord = $trainModel->where('cycle_id', $activeCycleId)->first();
+            $activeCycleName = $cycleRecord ? $cycleRecord['cycle_name'] : null;
             
             // Get latest log for this user to update, or create one for the active cycle
             $log = $trainModel->where('user_id', $userId)
@@ -354,13 +560,15 @@ class GoldTrainController extends BaseController
             } else {
                 $data['user_id'] = $userId;
                 $data['cycle_id'] = $activeCycleId;
+                $data['cycle_name'] = $activeCycleName;
                 $trainModel->insert($data);
             }
         } catch (\Exception $e) {
             return redirect()->back()->with('error', 'Database error: Please run migrations first. ' . $e->getMessage());
         }
 
-        return redirect()->back()->with('message', 'Player status updated successfully.');
+        // Keep the user on the loaded cycle if they are editing historical data
+        return redirect()->to('/gold-train?load_cycle_id=' . urlencode($activeCycleId))->with('message', 'Player status updated successfully.');
     }
 
     public function resetRoster()
@@ -404,6 +612,7 @@ class GoldTrainController extends BaseController
                 $trainModel->insert([
                     'user_id' => $user['id'],
                     'cycle_id' => $cycleId,
+                    'cycle_name' => 'Manual Reset',
                     'status' => 'pending',
                     'assigned_time' => null
                 ]);
@@ -433,8 +642,11 @@ class GoldTrainController extends BaseController
         ];
 
         // Fetch all unique cycles
-        $cycles = $trainModel->select('cycle_id')->distinct()->orderBy('created_at', 'DESC')->findAll();
-        $availableCycles = array_column($cycles, 'cycle_id');
+        $cycles = $trainModel->select('cycle_id, MAX(cycle_name) as cycle_name')->groupBy('cycle_id')->orderBy('MAX(created_at)', 'DESC')->findAll();
+        $availableCycles = [];
+        foreach ($cycles as $c) {
+            $availableCycles[$c['cycle_id']] = $c['cycle_name'] ?? $c['cycle_id'];
+        }
         
         // Filter by specific cycle if provided
         $selectedCycle = $this->request->getGet('cycle_id');
@@ -444,7 +656,7 @@ class GoldTrainController extends BaseController
         }
 
         // Build base query for history
-        $builder = $trainModel->orderBy('created_at', 'DESC');
+        $builder = $trainModel->orderBy('assigned_time', 'ASC'); // Enforce ASC sorting for history view by assigned date
         if ($selectedCycle !== 'all') {
             $builder->where('cycle_id', $selectedCycle);
         }
