@@ -19,6 +19,9 @@
                 <span>🕰️</span> History
             </a>
             <?php if (in_array(session()->get('role'), ['admin', 'super_admin'])) : ?>
+                <button type="button" onclick="generateAnnouncement()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-semibold transition-colors border border-indigo-500/50 shadow-sm flex items-center gap-2">
+                    <span>📢</span> Announce Week
+                </button>
                 <form action="/gold-train/shift-down" method="POST" onsubmit="return confirm('This will shift every scheduled player forward by 1 day. Do you want to continue?');">
                     <?= csrf_field() ?>
                     <button type="submit" class="px-4 py-2 bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-500 rounded-lg text-sm font-semibold transition-colors border border-emerald-600/50 shadow-sm flex items-center gap-2">
@@ -442,6 +445,22 @@
     <?php endif; ?>
 <?php endif; ?>
 
+<!-- Announcement Modal -->
+<div id="announcementModal" class="fixed inset-0 z-[100] hidden items-center justify-center overflow-auto bg-slate-950/80 backdrop-blur-sm p-4">
+    <div class="glass-panel p-8 rounded-2xl w-full max-w-2xl relative mx-auto my-auto shadow-2xl border border-slate-700">
+        <button type="button" onclick="closeModal('announcementModal')" class="absolute top-4 right-4 text-slate-500 hover:text-slate-300 transition-colors">
+            ✕
+        </button>
+        <h3 class="text-xl font-black text-indigo-400 mb-4">Weekly Train Announcement</h3>
+        <textarea id="announcementText" readonly class="w-full h-64 bg-slate-950 border border-slate-800 rounded-lg p-3 text-sm font-mono text-slate-300" onClick="this.select();"></textarea>
+        <div class="flex justify-end gap-3 mt-4">
+            <button type="button" onclick="copyAnnouncement()" class="px-6 py-2 bg-gradient-to-r from-indigo-600 to-indigo-500 text-white rounded-lg text-sm font-bold transition-all shadow-lg">
+                Copy to Clipboard
+            </button>
+        </div>
+    </div>
+</div>
+
 <style>
     .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
     .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
@@ -450,6 +469,74 @@
 </style>
 
 <script>
+    // --- Announcement Logic ---
+    function generateAnnouncement() {
+        const rows = document.querySelectorAll('#rosterTable tbody tr.roster-row');
+        
+        // Use an array to store entries so we can sort them by exact date
+        const scheduleEntries = [];
+        const today = new Date();
+        today.setHours(0, 0, 0, 0); // start of today
+        
+        const nextSevenDays = new Date(today);
+        nextSevenDays.setDate(today.getDate() + 7);
+        nextSevenDays.setHours(23, 59, 59, 999); // end of 7th day
+
+        rows.forEach(row => {
+            const dateCell = row.querySelector('.schedule-cell');
+            const scheduleDateStr = dateCell.getAttribute('data-value');
+            
+            if (scheduleDateStr && scheduleDateStr !== 'z') {
+                // Keep the time part so we can parse it correctly, but we'll sort based on the date
+                const scheduleDate = new Date(scheduleDateStr);
+                
+                if (scheduleDate >= today && scheduleDate <= nextSevenDays) {
+                    const playerName = row.querySelector('.player-name').innerText;
+                    scheduleEntries.push({
+                        date: scheduleDate,
+                        playerName: playerName
+                    });
+                }
+            }
+        });
+
+        // Sort chronologically (ASC)
+        scheduleEntries.sort((a, b) => a.date - b.date);
+
+        // Group by the formatted date string after sorting
+        const weeklySchedule = {};
+        scheduleEntries.forEach(entry => {
+            const dayName = entry.date.toLocaleDateString('en-US', { weekday: 'long' });
+            const dateFormatted = entry.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            const key = `${dayName} (${dateFormatted})`;
+            
+            if (!weeklySchedule[key]) {
+                weeklySchedule[key] = [];
+            }
+            weeklySchedule[key].push(entry.playerName);
+        });
+
+        let announcement = "🚂 **This Week's Gold Train Conductors** 🚂\n\n";
+        
+        // Since we insert into weeklySchedule in chronological order, Object.keys will iterate in that order
+        Object.keys(weeklySchedule).forEach(dateKey => {
+            announcement += `**${dateKey}:** ${weeklySchedule[dateKey].join(', ')}\n`;
+        });
+
+        announcement += "\nPlease prepare accordingly. If you need to swap, please arrange it with another member and notify an R4/R5.";
+
+        document.getElementById('announcementText').value = announcement;
+        openModal('announcementModal');
+    }
+
+    function copyAnnouncement() {
+        const textarea = document.getElementById('announcementText');
+        textarea.select();
+        document.execCommand('copy');
+        alert('Announcement copied to clipboard!');
+        closeModal('announcementModal');
+    }
+
     // --- Manual Cycle Save Logic ---
     function submitManualCycle() {
         const rows = document.querySelectorAll('#rosterTable tbody tr.roster-row');
@@ -560,13 +647,16 @@
         const tbody = table.querySelector("tbody");
         const rows = Array.from(tbody.querySelectorAll("tr.roster-row"));
         
-        // Toggle direction if clicking same column
-        if (currentSortCol === columnIndex) {
+        // Special case for date column to always be ASC on first click
+        if (columnIndex === 3 && currentSortCol !== 3) {
+            currentSortAsc = true;
+        } else if (currentSortCol === columnIndex) {
             currentSortAsc = !currentSortAsc;
         } else {
             currentSortAsc = true;
-            currentSortCol = columnIndex;
         }
+        
+        currentSortCol = columnIndex;
         
         rows.sort((a, b) => {
             let cellA = a.cells[columnIndex].getAttribute('data-value') || a.cells[columnIndex].innerText.trim();
