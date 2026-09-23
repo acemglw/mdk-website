@@ -82,5 +82,5 @@ email.SMTPPass = "idrp ovmh zrpm hhbx"
 email.SMTPPort = 587
 email.SMTPCrypto = tls
 email.fromEmail = acemglw@gmail.com
-email.fromName = "MDK Alliance"
+email.fromName = "TKU Alliance"
 email.mailType = html

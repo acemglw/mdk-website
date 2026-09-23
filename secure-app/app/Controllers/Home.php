@@ -7,7 +7,7 @@ class Home extends BaseController
     public function index()
     {
         $data = [
-            'title' => 'MDK Alliance Administration'
+            'title' => 'TKU Alliance Administration'
         ];
         
         return view('welcome_message', $data);

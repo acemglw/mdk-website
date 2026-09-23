@@ -41,6 +41,10 @@ class AdminController extends BaseController
         // Fetch user data before updating
         $user = $userModel->find($userId);
 
+        if (!$user) {
+            return redirect()->back()->with('error', 'User not found.');
+        }
+
         // Update the user's status
         $userModel->update($userId, ['status' => $newStatus]);
 
@@ -57,38 +61,39 @@ class AdminController extends BaseController
         }
 
         // Send Email Notification (Filtered for @mdk.com)
-        if ($user && !empty($user['email'])) {
+        if (!empty($user['email'])) {
             if (!str_ends_with(strtolower($user['email']), '@mdk.com')) {
                 try {
                     $email = \Config\Services::email();
                     $email->setTo($user['email']);
                     
-                    $displayName = !empty($user['player_name']) ? $user['player_name'] : $user['username'];
+                    $displayName = esc(!empty($user['player_name']) ? $user['player_name'] : $user['username']);
+                    $loginUrl = base_url('/login');
                     
                     if ($newStatus === 'approved') {
-                        $email->setSubject('Account Approved - MDK Alliance');
+                        $email->setSubject('Account Approved - TKU Alliance');
                         $message = "
                         <html>
                         <body style='font-family: Arial, sans-serif; color: #333; line-height: 1.6;'>
                             <h2 style='color: #10b981;'>Account Approved!</h2>
                             <p>Hello {$displayName},</p>
-                            <p>Your MDK Alliance account has been reviewed and <strong>approved</strong> by an administrator.</p>
+                            <p>Your TKU Alliance account has been reviewed and <strong>approved</strong> by an administrator.</p>
                             <p>You can now log in to access the tactical planners, leaderboards, and update your squad stats.</p>
                             <br>
-                            <p><a href='https://ace.h1x.com/login' style='background: #d97706; color: #fff; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold;'>Login Now</a></p>
+                            <p><a href='{$loginUrl}' style='background: #d97706; color: #fff; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold;'>Login Now</a></p>
                             <br>
                             <p>Best regards,<br><strong>The MDK Command Team</strong></p>
                         </body>
                         </html>
                         ";
                     } else {
-                        $email->setSubject('Account Update - MDK Alliance');
+                        $email->setSubject('Account Update - TKU Alliance');
                         $message = "
                         <html>
                         <body style='font-family: Arial, sans-serif; color: #333; line-height: 1.6;'>
                             <h2 style='color: #ef4444;'>Account Application Update</h2>
                             <p>Hello {$displayName},</p>
-                            <p>Unfortunately, your application for the MDK Alliance portal has been <strong>declined</strong> by an administrator at this time.</p>
+                            <p>Unfortunately, your application for the TKU Alliance portal has been <strong>declined</strong> by an administrator at this time.</p>
                             <br>
                             <p>Best regards,<br><strong>The MDK Command Team</strong></p>
                         </body>
@@ -144,21 +149,27 @@ class AdminController extends BaseController
         $userModel = new UserModel();
         $userStatModel = new UserStatModel();
 
+        $role = $this->request->getPost('role') ?: 'user';
+        // Security check: Only super_admin can create another super_admin
+        if ($role === 'super_admin' && session()->get('role') !== 'super_admin') {
+            $role = 'user';
+        }
+
+        $rawPassword = (string)$this->request->getPost('password');
+        if (strlen($rawPassword) < 8) {
+            return redirect()->back()->withInput()->with('error', 'Password must be at least 8 characters long.');
+        }
+
         // Get form inputs
         $data = [
             'username'       => $this->request->getPost('username'),
             'player_name'    => $this->request->getPost('player_name'),
             'email'          => $this->request->getPost('email'),
             'alliance_level' => $this->request->getPost('alliance_level'),
-            'password'       => $this->request->getPost('password'),
-            'role'           => $this->request->getPost('role'),
+            'password'       => password_hash($rawPassword, PASSWORD_DEFAULT),
+            'role'           => $role,
             'status'         => 'approved' // Automatically approved when created by admin
         ];
-
-        // Hash the password if provided
-        if (!empty($data['password'])) {
-            $data['password'] = password_hash($data['password'], PASSWORD_DEFAULT);
-        }
 
         // Attempt to save the user
         $userId = $userModel->insert($data);
@@ -210,9 +221,22 @@ class AdminController extends BaseController
             return redirect()->to('/admin/users')->with('error', 'User not found.');
         }
 
+        $currentLoggedInId = session()->get('id');
+        $newRole = $this->request->getPost('role');
+        $newStatus = $this->request->getPost('status');
+
+        // Prevent self-lockout: An admin cannot demote themselves or reject their own status
+        if ($userId == $currentLoggedInId) {
+            if ($newStatus !== 'approved') {
+                return redirect()->back()->with('error', 'You cannot change your own active status.');
+            }
+            if ($existingUser['role'] === 'super_admin' && $newRole !== 'super_admin') {
+                return redirect()->back()->with('error', 'You cannot demote your own Super Admin role.');
+            }
+        }
+
         // Security check: Only super_admin can modify a super_admin or elevate someone to super_admin
         $isSuperAdmin = (session()->get('role') === 'super_admin');
-        $newRole = $this->request->getPost('role');
 
         if (($existingUser['role'] === 'super_admin' || $newRole === 'super_admin') && !$isSuperAdmin) {
             return redirect()->back()->with('error', 'Only Super Administrators can manage Super Admin roles.');
@@ -225,12 +249,15 @@ class AdminController extends BaseController
             'email'          => $this->request->getPost('email'),
             'alliance_level' => $this->request->getPost('alliance_level'),
             'role'           => $newRole,
-            'status'         => $this->request->getPost('status'),
+            'status'         => $newStatus,
         ];
 
         // Only update password if provided
-        $password = $this->request->getPost('password');
+        $password = (string)$this->request->getPost('password');
         if (!empty($password)) {
+            if (strlen($password) < 8) {
+                return redirect()->back()->withInput()->with('error', 'Password must be at least 8 characters long.');
+            }
             $data['password'] = password_hash($password, PASSWORD_DEFAULT);
         } else {
             unset($data['password']);
@@ -253,22 +280,40 @@ class AdminController extends BaseController
         $userStatModel = new UserStatModel();
         $file = $this->request->getFile('csv_file');
 
-        if (!$file->isValid() || $file->getExtension() !== 'csv') {
+        if (!$file || !$file->isValid() || strtolower($file->getClientExtension()) !== 'csv') {
             return redirect()->back()->with('error', 'Please upload a valid CSV file.');
         }
 
         $filepath = $file->getTempName();
-        $csvData = array_map('str_getcsv', file($filepath));
+        $handle = fopen($filepath, 'r');
+        if ($handle === false) {
+            return redirect()->back()->with('error', 'Unable to open the uploaded CSV file.');
+        }
 
-        // Assuming header row: username, player_name, email, alliance_level, role, password
-        $header = array_shift($csvData);
+        // Read header row: username, player_name, email, alliance_level, role, password
+        $header = fgetcsv($handle);
         $successCount = 0;
         $failCount = 0;
 
-        foreach ($csvData as $row) {
+        while (($row = fgetcsv($handle)) !== false) {
+            // Skip empty rows
+            if (empty($row) || (count($row) === 1 && $row[0] === null)) {
+                continue;
+            }
+
             // Very basic validation mapping
             if (count($row) >= 6) {
+                $username = trim($row[0]);
+                $playerName = trim($row[1]);
+                $email = trim($row[2]);
+                $allianceLevel = trim($row[3]);
                 $role = trim($row[4]);
+                $rawPassword = trim($row[5]);
+
+                if (empty($username) || empty($email) || empty($rawPassword)) {
+                    $failCount++;
+                    continue;
+                }
                 
                 // Security: Don't allow CSV import to create super_admins unless the current user is one
                 if ($role === 'super_admin' && session()->get('role') !== 'super_admin') {
@@ -276,12 +321,12 @@ class AdminController extends BaseController
                 }
 
                 $data = [
-                    'username'       => trim($row[0]),
-                    'player_name'    => trim($row[1]),
-                    'email'          => trim($row[2]),
-                    'alliance_level' => trim($row[3]),
+                    'username'       => $username,
+                    'player_name'    => $playerName,
+                    'email'          => $email,
+                    'alliance_level' => $allianceLevel,
                     'role'           => $role,
-                    'password'       => password_hash(trim($row[5]), PASSWORD_DEFAULT),
+                    'password'       => password_hash($rawPassword, PASSWORD_DEFAULT),
                     'status'         => 'approved'
                 ];
 
@@ -303,8 +348,11 @@ class AdminController extends BaseController
                 } else {
                     $failCount++;
                 }
+            } else {
+                $failCount++;
             }
         }
+        fclose($handle);
 
         return redirect()->to('/admin/users')->with('success', "Import completed. {$successCount} added, {$failCount} skipped/failed.");
     }
@@ -338,7 +386,8 @@ class AdminController extends BaseController
         $db = \Config\Database::connect();
         
         $sortBy = $this->request->getGet('sort') ?: 'username';
-        $order = $this->request->getGet('order') ?: 'ASC';
+        $rawOrder = strtoupper((string)$this->request->getGet('order'));
+        $order = ($rawOrder === 'DESC') ? 'DESC' : 'ASC';
 
         // Fetch all approved users along with their stats
         $builder = $db->table('users');
@@ -357,16 +406,21 @@ class AdminController extends BaseController
         $builder->join('user_stats', 'user_stats.user_id = users.id', 'left');
         $builder->where('users.status', 'approved');
         
-        // Sorting logic
-        if (in_array($sortBy, ['power_tank', 'power_air', 'power_missile', 'total_power'])) {
-            // For calculated or joined columns
+        // Whitelist allowed sort columns to prevent SQL injection or invalid column errors
+        $allowedStatsCols = ['power_tank', 'power_air', 'power_missile', 'total_power'];
+        $allowedUserCols = ['username', 'player_name', 'alliance_level', 'id'];
+
+        if (in_array($sortBy, $allowedStatsCols)) {
             if ($sortBy === 'total_power') {
                 $builder->orderBy('total_power', $order);
             } else {
                 $builder->orderBy('user_stats.' . $sortBy, $order);
             }
-        } else {
+        } elseif (in_array($sortBy, $allowedUserCols)) {
             $builder->orderBy('users.' . $sortBy, $order);
+        } else {
+            $sortBy = 'username';
+            $builder->orderBy('users.username', $order);
         }
         
         $data['users_stats'] = $builder->get()->getResultArray();
@@ -379,13 +433,9 @@ class AdminController extends BaseController
     // Squad Powers Growth Analytics
     public function squadGrowth()
     {
-        $historyModel = new UserStatsHistoryModel();
-        
         // Filter params
-        $daysLimit = (int)$this->request->getGet('days_limit');
-        if (!isset($_GET['days_limit'])) {
-            $daysLimit = 30; // Default to last 30 days
-        }
+        $daysParam = $this->request->getGet('days_limit');
+        $daysLimit = ($daysParam !== null) ? max(0, (int)$daysParam) : 30; // Default to last 30 days
         $usernameFilter = $this->request->getGet('username_filter');
 
         $db = \Config\Database::connect();
@@ -414,6 +464,7 @@ class AdminController extends BaseController
         $histBuilder = $db->table('user_stats_history');
         $histBuilder->select('user_stats_history.*, users.username, users.player_name, users.alliance_level');
         $histBuilder->join('users', 'users.id = user_stats_history.user_id');
+        $histBuilder->where('users.status', 'approved');
         
         if ($daysLimit > 0) {
             $dateLimit = date('Y-m-d H:i:s', strtotime("-{$daysLimit} days"));
@@ -448,7 +499,19 @@ class AdminController extends BaseController
         $oldAir = isset($existing['power_air']) ? (float)$existing['power_air'] : 0.00;
         $oldMissile = isset($existing['power_missile']) ? (float)$existing['power_missile'] : 0.00;
 
-        // Only log if something actually changed
+        // Save the actual current stat first
+        $saved = $statModel->save([
+            'user_id'       => $userId,
+            'power_tank'    => $newTank,
+            'power_air'     => $newAir,
+            'power_missile' => $newMissile,
+        ]);
+
+        if (!$saved) {
+            return false;
+        }
+
+        // Only log history if save succeeded and values changed
         if ($oldTank != $newTank || $oldAir != $newAir || $oldMissile != $newMissile) {
             
             // Calculate Days Since Last Update
@@ -478,13 +541,7 @@ class AdminController extends BaseController
             ]);
         }
 
-        // Save the actual current stat
-        return $statModel->save([
-            'user_id'       => $userId,
-            'power_tank'    => $newTank,
-            'power_air'     => $newAir,
-            'power_missile' => $newMissile,
-        ]);
+        return true;
     }
 
     // Update a specific user's Squad Powers (Single row save)
@@ -495,10 +552,39 @@ class AdminController extends BaseController
         $newAir = (float)$this->request->getPost('power_air');
         $newMissile = (float)$this->request->getPost('power_missile');
 
-        if ($this->savePowerWithHistory($userId, $newTank, $newAir, $newMissile)) {
-            return redirect()->back()->with('success', 'User powers updated successfully!');
+        $isAjax = $this->request->isAJAX();
+
+        if (!$userId) {
+            if ($isAjax) {
+                return $this->response->setStatusCode(400)->setJSON([
+                    'status'  => 'error',
+                    'message' => 'User ID is required.'
+                ]);
+            }
+            return redirect()->back()->with('error', 'User ID is required.');
         }
-        
+
+        try {
+            $success = $this->savePowerWithHistory($userId, $newTank, $newAir, $newMissile);
+            if ($success) {
+                if ($isAjax) {
+                    return $this->response->setJSON([
+                        'status'  => 'success',
+                        'message' => 'User powers updated successfully!'
+                    ]);
+                }
+                return redirect()->back()->with('success', 'User powers updated successfully!');
+            }
+        } catch (\Exception $e) {
+            log_message('error', 'Error updating squad power: ' . $e->getMessage());
+        }
+
+        if ($isAjax) {
+            return $this->response->setStatusCode(400)->setJSON([
+                'status'  => 'error',
+                'message' => 'Failed to update user powers.'
+            ]);
+        }
         return redirect()->back()->with('error', 'Failed to update user powers.');
     }
 
@@ -516,13 +602,25 @@ class AdminController extends BaseController
         $db = \Config\Database::connect();
         $db->transStart();
 
+        $allSucceeded = true;
         foreach ($statsData as $userId => $powers) {
-            $this->savePowerWithHistory(
-                $userId, 
-                (float)$powers['power_tank'], 
-                (float)$powers['power_air'], 
-                (float)$powers['power_missile']
-            );
+            if (!is_array($powers)) {
+                continue;
+            }
+
+            $tank = isset($powers['power_tank']) ? (float)$powers['power_tank'] : 0.0;
+            $air = isset($powers['power_air']) ? (float)$powers['power_air'] : 0.0;
+            $missile = isset($powers['power_missile']) ? (float)$powers['power_missile'] : 0.0;
+
+            if (!$this->savePowerWithHistory($userId, $tank, $air, $missile)) {
+                $allSucceeded = false;
+                break;
+            }
+        }
+
+        if (!$allSucceeded) {
+            $db->transRollback();
+            return redirect()->back()->with('error', 'Failed to update some user powers. Changes were rolled back.');
         }
 
         $db->transComplete();
@@ -549,17 +647,12 @@ class AdminController extends BaseController
 
         $filename = 'squad_powers_export_' . date('Y-m-d') . '.csv';
         
-        header("Content-Description: File Transfer");
-        header("Content-Disposition: attachment; filename=$filename");
-        header("Content-Type: application/csv; "); 
-        
-        $file = fopen('php://output', 'w');
-        
+        $buffer = fopen('php://temp', 'w+');
         // Write CSV Header
-        fputcsv($file, ['username', 'power_tank', 'power_air', 'power_missile']);
+        fputcsv($buffer, ['username', 'power_tank', 'power_air', 'power_missile']);
         
         foreach ($users as $u) {
-            fputcsv($file, [
+            fputcsv($buffer, [
                 $u['username'],
                 $u['power_tank'] ?? 0.00,
                 $u['power_air'] ?? 0.00,
@@ -567,8 +660,13 @@ class AdminController extends BaseController
             ]);
         }
         
-        fclose($file);
-        exit;
+        rewind($buffer);
+        $csvContent = stream_get_contents($buffer);
+        fclose($buffer);
+
+        return $this->response
+            ->setHeader('Content-Type', 'text/csv')
+            ->download($filename, $csvContent);
     }
 
     /**
@@ -580,15 +678,18 @@ class AdminController extends BaseController
         
         $file = $this->request->getFile('csv_file');
 
-        if (!$file->isValid() || $file->getExtension() !== 'csv') {
+        if (!$file || !$file->isValid() || strtolower($file->getClientExtension()) !== 'csv') {
             return redirect()->back()->with('error', 'Please upload a valid CSV file.');
         }
 
         $filepath = $file->getTempName();
-        $csvData = array_map('str_getcsv', file($filepath));
-        
+        $handle = fopen($filepath, 'r');
+        if ($handle === false) {
+            return redirect()->back()->with('error', 'Unable to open the uploaded CSV file.');
+        }
+
         // Remove Header row
-        array_shift($csvData);
+        fgetcsv($handle);
         
         $successCount = 0;
         $failCount = 0;
@@ -596,27 +697,44 @@ class AdminController extends BaseController
         $db = \Config\Database::connect();
         $db->transStart();
 
-        foreach ($csvData as $row) {
+        while (($row = fgetcsv($handle)) !== false) {
+            // Skip empty rows
+            if (empty($row) || (count($row) === 1 && $row[0] === null)) {
+                continue;
+            }
+
             if (count($row) >= 4) {
                 $username = trim($row[0]);
+
+                if (empty($username) || !is_numeric(trim($row[1])) || !is_numeric(trim($row[2])) || !is_numeric(trim($row[3]))) {
+                    $failCount++;
+                    continue;
+                }
                 
                 // Find user by username
                 $user = $userModel->where('username', $username)->first();
                 
                 if ($user) {
-                    // Use our new centralized tracking logic for imports too!
-                    $this->savePowerWithHistory(
+                    // Use our centralized tracking logic for imports
+                    $saved = $this->savePowerWithHistory(
                         $user['id'],
                         (float)trim($row[1]),
                         (float)trim($row[2]),
                         (float)trim($row[3])
                     );
-                    $successCount++;
+                    if ($saved) {
+                        $successCount++;
+                    } else {
+                        $failCount++;
+                    }
                 } else {
                     $failCount++;
                 }
+            } else {
+                $failCount++;
             }
         }
+        fclose($handle);
 
         $db->transComplete();
 
@@ -624,6 +742,6 @@ class AdminController extends BaseController
             return redirect()->back()->with('error', 'Database error occurred during import.');
         }
 
-        return redirect()->back()->with('success', "Import complete: {$successCount} players updated. {$failCount} skipped (user not found).");
+        return redirect()->to('/admin/users/squad_powers')->with('success', "Import complete: {$successCount} players updated. {$failCount} skipped/failed.");
     }
 }

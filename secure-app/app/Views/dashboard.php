@@ -77,7 +77,7 @@
                 </a>
 
                 <!-- Gold Train -->
-                <div class="flex items-center bg-slate-900/80 border border-slate-700/60 rounded-xl hover:border-yellow-500/50 transition-all duration-300 shadow-lg group overflow-hidden h-32 relative">
+                <div class="flex items-center bg-slate-900/80 border border-slate-700/60 rounded-xl hover:border-yellow-500/50 transition-all duration-300 shadow-lg group overflow-hidden h-32 relative md:col-span-2">
                     <div class="absolute -right-4 -bottom-4 text-6xl opacity-10 group-hover:scale-110 transition-transform duration-300">🚂</div>
                     <div class="flex-1 h-full flex flex-col justify-center p-6 cursor-pointer hover:bg-slate-800 relative z-10" onclick="window.location.href='/gold-train'">
                         <h3 class="font-bold text-yellow-500 text-lg mb-1 flex items-center gap-2"><span>🚂</span> Polar Express</h3>
@@ -90,6 +90,30 @@
                     </div>
                 </div>
             </div>
+
+            <!-- This Week's Gold Train Conductors Panel -->
+            <?php if (!empty($upcoming_trains)): ?>
+            <div class="glass-panel p-6 rounded-2xl shadow-xl border-t-4 border-t-yellow-500">
+                <h3 class="text-lg font-extrabold text-white mb-4 flex items-center justify-between">
+                    <div class="flex items-center gap-2"><span>🚂</span> This Week's Gold Train Conductors</div>
+                </h3>
+                <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                    <?php foreach ($upcoming_trains as $dayKey => $players): ?>
+                        <div class="bg-slate-900/80 border border-slate-700/50 rounded-lg p-3 shadow-inner">
+                            <h4 class="text-xs font-black text-yellow-500 mb-2 border-b border-slate-700/50 pb-1"><?= esc($dayKey) ?></h4>
+                            <ul class="text-sm text-slate-300 space-y-1">
+                                <?php foreach ($players as $player): ?>
+                                    <li class="flex items-center gap-2">
+                                        <span class="w-1.5 h-1.5 rounded-full bg-yellow-600 inline-block"></span>
+                                        <?= esc($player) ?>
+                                    </li>
+                                <?php endforeach; ?>
+                            </ul>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+            <?php endif; ?>
 
             <!-- Command Center Section -->
             <h2 class="text-xl font-bold text-white flex items-center gap-2 mt-4"><span>🚀</span> Command Center</h2>

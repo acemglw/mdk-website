@@ -102,12 +102,12 @@ class AuthController extends BaseController
             try {
                 $email = \Config\Services::email();
                 $email->setTo($data['email']);
-                $email->setSubject('Welcome to MDK Alliance! (Pending Approval)');
+                $email->setSubject('Welcome to TKU Alliance! (Pending Approval)');
                 
                 $message = "
                 <html>
                 <body style='font-family: Arial, sans-serif; color: #333; line-height: 1.6;'>
-                    <h2 style='color: #d97706;'>Welcome to MDK Alliance, {$displayName}!</h2>
+                    <h2 style='color: #d97706;'>Welcome to TKU Alliance, {$displayName}!</h2>
                     <p>Your account has been successfully registered and is currently <strong>pending admin approval</strong>.</p>
                     <p>Once an administrator reviews and approves your account, you will be able to log in and access the alliance tools, tactical planners, and leaderboards.</p>
                     <br>
@@ -190,7 +190,7 @@ class AuthController extends BaseController
             try {
                 $email = \Config\Services::email();
                 $email->setTo($user['email']);
-                $email->setSubject('Password Reset Request - MDK Alliance');
+                $email->setSubject('Password Reset Request - TKU Alliance');
 
                 $resetLink = base_url('reset-password/' . $token);
                 $displayName = !empty($user['player_name']) ? $user['player_name'] : $user['username'];
@@ -281,7 +281,7 @@ class AuthController extends BaseController
     {
         $email = \Config\Services::email();
         $email->setTo('acemglw@gmail.com'); // Test specific email
-        $email->setSubject('MDK Alliance - SMTP Test');
+        $email->setSubject('TKU Alliance - SMTP Test');
 
         $message = "
         <html>

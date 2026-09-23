@@ -3,6 +3,7 @@
 namespace App\Controllers;
 
 use App\Models\UserModel;
+use App\Models\GoldTrainLogModel;
 
 class DashboardController extends BaseController
 {
@@ -84,6 +85,48 @@ class DashboardController extends BaseController
             $data['growth_leaders'] = $growthBuilder->get()->getResultArray();
         } catch (\Exception $e) {
             $data['growth_leaders'] = [];
+        }
+
+        // 5. This Week's Gold Train Conductors
+        $data['upcoming_trains'] = [];
+        try {
+            $trainModel = new GoldTrainLogModel();
+            
+            // Get the active cycle
+            $latestCycle = $trainModel->orderBy('created_at', 'DESC')->first();
+            $activeCycleId = $latestCycle ? $latestCycle['cycle_id'] : null;
+
+            if ($activeCycleId) {
+                $today = date('Y-m-d 00:00:00');
+                $nextSevenDays = date('Y-m-d 23:59:59', strtotime('+7 days'));
+
+                $trainBuilder = $db->table('gold_train_logs');
+                $trainBuilder->select('gold_train_logs.assigned_time, users.player_name, users.username');
+                $trainBuilder->join('users', 'users.id = gold_train_logs.user_id', 'left');
+                $trainBuilder->where('gold_train_logs.cycle_id', $activeCycleId);
+                $trainBuilder->where('gold_train_logs.assigned_time >=', $today);
+                $trainBuilder->where('gold_train_logs.assigned_time <=', $nextSevenDays);
+                $trainBuilder->orderBy('gold_train_logs.assigned_time', 'ASC');
+
+                $upcomingLogs = $trainBuilder->get()->getResultArray();
+
+                // Group by formatted date string
+                foreach ($upcomingLogs as $log) {
+                    $timestamp = strtotime($log['assigned_time']);
+                    $dayName = date('l', $timestamp);
+                    $dateFormatted = date('M j', $timestamp);
+                    $key = "{$dayName} ({$dateFormatted})";
+                    
+                    $playerName = !empty($log['player_name']) ? $log['player_name'] : $log['username'];
+
+                    if (!isset($data['upcoming_trains'][$key])) {
+                        $data['upcoming_trains'][$key] = [];
+                    }
+                    $data['upcoming_trains'][$key][] = $playerName;
+                }
+            }
+        } catch (\Exception $e) {
+            $data['upcoming_trains'] = [];
         }
 
         return view('dashboard', $data);

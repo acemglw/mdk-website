@@ -6,11 +6,11 @@
     <div class="mb-10 flex flex-col items-center mt-4">
         <div class="w-32 h-32 mb-6 relative shadow-[0_0_40px_rgba(245,158,11,0.2)] rounded-full flex items-center justify-center bg-slate-900/50">
             <div class="absolute inset-0 rounded-full border-2 border-amber-500/50 animate-pulse"></div>
-            <img src="/images/mdk_logo.png" alt="MDK Logo" class="w-28 h-28 object-contain rounded-full relative z-10 drop-shadow-lg" onerror="this.src='/images/mdk_log.png';" />
+            <img src="/images/tku_logo.png" alt="TKU Logo" class="w-28 h-28 object-contain rounded-full relative z-10 drop-shadow-lg" onerror="this.src='/images/mdk_log.png';" />
         </div>
 
         <h1 class="text-4xl md:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-500 mb-4 tracking-tight drop-shadow-sm">
-            MDK Alliance
+            TKU Alliance
         </h1>
         <h2 class="text-xl md:text-2xl font-medium text-slate-300">
             Welcome to the Administration Page

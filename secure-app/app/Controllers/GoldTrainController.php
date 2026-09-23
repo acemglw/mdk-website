@@ -631,6 +631,153 @@ class GoldTrainController extends BaseController
         return redirect()->back()->with('message', 'The active Gold Train roster schedule has been reset for a new cycle. Previous cycle records were saved to history.');
     }
 
+    public function export()
+    {
+        $role = session()->get('role');
+        if (!in_array($role, ['admin', 'super_admin'])) {
+            return redirect()->back()->with('error', 'Unauthorized to export.');
+        }
+
+        $trainModel = new GoldTrainLogModel();
+        $userModel = new UserModel();
+
+        // 1. Find the active cycle (or a requested load cycle)
+        $cycleId = $this->request->getGet('load_cycle_id');
+        if (!$cycleId) {
+            $latestCycle = $trainModel->orderBy('created_at', 'DESC')->first();
+            $cycleId = $latestCycle ? $latestCycle['cycle_id'] : null;
+        }
+
+        if (!$cycleId) {
+            return redirect()->back()->with('error', 'No active cycle found to export.');
+        }
+
+        // 2. Fetch the logs for this cycle
+        $logs = $trainModel->where('cycle_id', $cycleId)->orderBy('assigned_time', 'ASC')->findAll();
+
+        // Build a lookup map of user_id => username/player_name
+        $allUsers = $userModel->findAll();
+        $userMap = [];
+        foreach ($allUsers as $u) {
+            $userMap[$u['id']] = [
+                'username' => $u['username'],
+                'player_name' => !empty($u['player_name']) ? $u['player_name'] : $u['username'],
+            ];
+        }
+
+        // 3. Generate CSV
+        $filename = 'GoldTrain_Schedule_' . $cycleId . '_' . date('Ymd') . '.csv';
+        
+        // Output headers so that the file is downloaded rather than displayed
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        
+        // Create a file pointer connected to the output stream
+        $output = fopen('php://output', 'w');
+        
+        // Output the column headings
+        fputcsv($output, ['User ID', 'Username', 'Player Name', 'Scheduled Date (YYYY-MM-DD HH:MM:SS)']);
+        
+        foreach ($logs as $log) {
+            if ($log['assigned_time']) {
+                $userData = $userMap[$log['user_id']] ?? ['username' => 'Unknown', 'player_name' => 'Unknown'];
+                fputcsv($output, [
+                    $log['user_id'],
+                    $userData['username'],
+                    $userData['player_name'],
+                    $log['assigned_time']
+                ]);
+            }
+        }
+        
+        fclose($output);
+        exit;
+    }
+
+    public function import()
+    {
+        $role = session()->get('role');
+        if (!in_array($role, ['admin', 'super_admin'])) {
+            return redirect()->back()->with('error', 'Unauthorized to import.');
+        }
+
+        $file = $this->request->getFile('schedule_csv');
+
+        if (!$file || !$file->isValid() || $file->getExtension() !== 'csv') {
+            return redirect()->back()->with('error', 'Please upload a valid CSV file.');
+        }
+
+        try {
+            $csvData = array_map('str_getcsv', file($file->getTempName()));
+            
+            // Assume first row is headers: 'User ID', 'Username', 'Player Name', 'Scheduled Date'
+            if (empty($csvData) || count($csvData) <= 1) {
+                return redirect()->back()->with('error', 'CSV file is empty or missing data rows.');
+            }
+
+            // Remove header row
+            array_shift($csvData);
+
+            $trainModel = new GoldTrainLogModel();
+            
+            // We need to know which cycle we are updating
+            $activeCycleId = $this->request->getPost('active_cycle_id');
+            if (!$activeCycleId) {
+                $latestCycle = $trainModel->orderBy('created_at', 'DESC')->first();
+                $activeCycleId = $latestCycle ? $latestCycle['cycle_id'] : null;
+            }
+
+            if (!$activeCycleId) {
+                return redirect()->back()->with('error', 'No active cycle found to apply imports to.');
+            }
+
+            $db = \Config\Database::connect();
+            $db->transStart();
+
+            $updateCount = 0;
+
+            foreach ($csvData as $row) {
+                if (count($row) < 4) continue; // Ensure row has enough columns
+
+                $userId = trim($row[0]);
+                $dateStr = trim($row[3]);
+
+                if (empty($userId) || empty($dateStr)) continue;
+
+                // Validate and format date
+                $date = \DateTime::createFromFormat('Y-m-d H:i:s', $dateStr);
+                if (!$date) {
+                    $date = \DateTime::createFromFormat('Y-m-d H:i', $dateStr);
+                }
+                
+                if ($date) {
+                    // Find the existing log for this user in this cycle
+                    $log = $trainModel->where('user_id', $userId)
+                                      ->where('cycle_id', $activeCycleId)
+                                      ->first();
+
+                    if ($log) {
+                        $trainModel->update($log['id'], [
+                            'assigned_time' => $date->format('Y-m-d H:i:s')
+                        ]);
+                        $updateCount++;
+                    }
+                }
+            }
+
+            $db->transComplete();
+
+            if ($db->transStatus() === FALSE) {
+                return redirect()->back()->with('error', 'Database error during import.');
+            }
+
+            return redirect()->to('/gold-train?load_cycle_id=' . urlencode($activeCycleId))->with('message', "Successfully imported and updated schedule for {$updateCount} players.");
+
+        } catch (\Exception $e) {
+            return redirect()->back()->with('error', 'Error processing CSV: ' . $e->getMessage());
+        }
+    }
+
     public function history()
     {
         $trainModel = new GoldTrainLogModel();

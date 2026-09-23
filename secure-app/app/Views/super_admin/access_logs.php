@@ -1,4 +1,4 @@
-<?= $this->include('templates/header', ['title' => 'Page Access Logs - MDK Alliance']) ?>
+<?= $this->include('templates/header', ['title' => 'Page Access Logs - TKU Alliance']) ?>
 
 <div class="glass-panel p-6 md:p-8 rounded-2xl shadow-2xl max-w-6xl w-full mx-auto relative z-10">
     <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 border-b border-slate-700/50 pb-4 gap-4">

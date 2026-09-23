@@ -41,6 +41,8 @@ $routes->post('/gold-train/generate-cycle', 'GoldTrainController::generateCycle'
 $routes->post('/gold-train/save-cycle', 'GoldTrainController::saveCycle', ['filter' => 'pageAuth:admin']);
 $routes->post('/gold-train/load-cycle', 'GoldTrainController::loadCycle', ['filter' => 'pageAuth:admin']);
 $routes->post('/gold-train/delete-cycle', 'GoldTrainController::deleteCycle', ['filter' => 'pageAuth:admin']);
+$routes->get('/gold-train/export', 'GoldTrainController::export', ['filter' => 'pageAuth:admin']);
+$routes->post('/gold-train/import', 'GoldTrainController::import', ['filter' => 'pageAuth:admin']);
 $routes->post('/gold-train/reset', 'GoldTrainController::resetRoster', ['filter' => 'pageAuth:admin']);
 $routes->post('/gold-train/swap', 'GoldTrainController::swapSchedule', ['filter' => 'pageAuth:admin']);
 $routes->post('/gold-train/shift-down', 'GoldTrainController::shiftDown', ['filter' => 'pageAuth:admin']); // NEW SHIFT DOWN ROUTE

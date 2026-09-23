@@ -14,7 +14,7 @@ class Email extends BaseConfig
     /**
      * @var string
      */
-    public $fromName = 'MDK Alliance';
+    public $fromName = 'TKU Alliance';
 
     /**
      * @var string

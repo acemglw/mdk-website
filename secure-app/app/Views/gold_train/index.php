@@ -242,6 +242,39 @@
             </form>
         </div>
     </div>
+    
+    <!-- Import / Export -->
+    <div class="bg-slate-800/40 rounded-xl border border-slate-700/50 p-6 shadow-lg mb-8">
+        <h3 class="text-lg font-bold text-indigo-400 mb-4 flex items-center gap-2">
+            <span>🗃️</span> Import / Export Schedule
+        </h3>
+        <div class="flex flex-col md:flex-row gap-6 items-end">
+            <!-- Export -->
+            <div class="flex-1">
+                <p class="text-xs text-slate-400 mb-4">Download the current cycle's schedule as a CSV file to edit in Excel or Google Sheets.</p>
+                <a href="/gold-train/export<?= isset($_GET['load_cycle_id']) ? '?load_cycle_id=' . urlencode($_GET['load_cycle_id']) : '' ?>" class="inline-block px-6 py-2 bg-slate-800 hover:bg-slate-700 text-indigo-400 border border-indigo-500/30 rounded-lg text-sm font-bold transition-colors shadow-sm">
+                    📥 Export CSV
+                </a>
+            </div>
+
+            <!-- Import -->
+            <div class="flex-[2]">
+                <p class="text-xs text-slate-400 mb-4">Upload a modified CSV file to update the schedule dates for this cycle. The file must match the exported format.</p>
+                <form action="/gold-train/import" method="POST" enctype="multipart/form-data" class="flex gap-4 items-end">
+                    <?= csrf_field() ?>
+                    <?php if (isset($_GET['load_cycle_id'])): ?>
+                        <input type="hidden" name="active_cycle_id" value="<?= esc($_GET['load_cycle_id']) ?>">
+                    <?php endif; ?>
+                    <div class="flex-1">
+                        <input type="file" name="schedule_csv" accept=".csv" required class="block w-full text-sm text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-bold file:bg-indigo-600/20 file:text-indigo-400 hover:file:bg-indigo-600/30 cursor-pointer">
+                    </div>
+                    <button type="submit" class="px-6 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-bold transition-all shadow-lg">
+                        📤 Upload & Update
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
     <?php endif; ?>
 
     <!-- Roster Data Table -->

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?= esc($title ?? 'MDK Alliance Administration') ?></title>
+    <title><?= esc($title ?? 'TKU Alliance Administration') ?></title>
 
     <!-- Explicitly defining the favicon -->
     <link rel="icon" type="image/x-icon" href="/images/mdk_favicon.ico">
@@ -44,8 +44,8 @@
             <div class="flex items-center justify-between h-16">
                 <!-- Logo & Brand -->
                 <div class="flex-shrink-0 flex items-center gap-3 cursor-pointer" onclick="window.location.href='/'">
-                    <img class="h-8 w-8 object-contain rounded-full shadow-[0_0_10px_rgba(245,158,11,0.2)]" src="/images/mdk_logo.png" alt="MDK Logo" onerror="this.src='/images/mdk_log.png';">
-                    <span class="font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-amber-600 tracking-tight">MDK Alliance</span>
+                    <img class="h-8 w-8 object-contain rounded-full shadow-[0_0_10px_rgba(245,158,11,0.2)]" src="/images/tku_logo.png" alt="TKU Logo" onerror="this.src='/images/mdk_log.png';">
+                    <span class="font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-amber-600 tracking-tight">TKU Alliance</span>
                 </div>
 
                 <!-- Desktop Menu -->

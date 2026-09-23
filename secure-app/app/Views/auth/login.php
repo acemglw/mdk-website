@@ -1,11 +1,11 @@
-<?= $this->include('templates/header', ['title' => 'Login - MDK Alliance']) ?>
+<?= $this->include('templates/header', ['title' => 'Login - TKU Alliance']) ?>
 
 <div class="glass-panel p-8 md:p-12 rounded-2xl shadow-2xl max-w-md w-full relative z-10 mx-4">
     <!-- Header Section -->
     <div class="mb-8 text-center">
         <div class="inline-flex w-20 h-20 mb-4 relative shadow-[0_0_30px_rgba(245,158,11,0.2)] rounded-full items-center justify-center bg-slate-900/50">
             <div class="absolute inset-0 rounded-full border-2 border-amber-500/50 animate-pulse"></div>
-            <img src="/images/mdk_logo.png" alt="MDK Logo" class="w-16 h-16 object-contain rounded-full relative z-10 drop-shadow-lg" onerror="this.src='/images/mdk_logo_placeholder.png';" />
+            <img src="/images/tku_logo.png" alt="TKU Logo" class="w-16 h-16 object-contain rounded-full relative z-10 drop-shadow-lg" onerror="this.src='/images/mdk_logo_placeholder.png';" />
         </div>
         <h1 class="text-2xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-500 tracking-tight drop-shadow-sm">
             Alliance Login
