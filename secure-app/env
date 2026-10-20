@@ -21,7 +21,7 @@ CI_ENVIRONMENT = production
 # APP
 #--------------------------------------------------------------------
 
-app.baseURL = 'https://allalliances.com/'
+app.baseURL = 'https://www.allalliances.com/'
 
 # app.baseURL = ''
 # If you have trouble with `.`, you could also use `_`.
