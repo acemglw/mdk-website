@@ -76,7 +76,7 @@ logger.threshold = 4
 #--------------------------------------------------------------------
 
 email.protocol = smtp
-email.SMTPHost = SMTP.gmail.net
+email.SMTPHost = smtp.gmail.com
 email.SMTPUser = acemglw@gmail.com
 email.SMTPPass = "idrp ovmh zrpm hhbx"
 email.SMTPPort = 587

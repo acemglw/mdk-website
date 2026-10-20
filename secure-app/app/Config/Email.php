@@ -9,7 +9,7 @@ class Email extends BaseConfig
     /**
      * @var string
      */
-    public $fromEmail = 'DoNotReply@mdk.com';
+    public $fromEmail = 'acemglw@gmail.com';
 
     /**
      * @var string
@@ -47,7 +47,7 @@ class Email extends BaseConfig
      *
      * @var string
      */
-    public $SMTPHost = 'SMTP.gmail.com';
+    public $SMTPHost = 'smtp.gmail.com';
 
     /**
      * SMTP Username
@@ -68,7 +68,7 @@ class Email extends BaseConfig
      *
      * @var int
      */
-    public $SMTPPort = 465;
+    public $SMTPPort = 587;
 
     /**
      * SMTP Timeout (in seconds)
@@ -89,7 +89,7 @@ class Email extends BaseConfig
      *
      * @var string empty, 'tls' or 'ssl'
      */
-    public $SMTPCrypto = '';
+    public $SMTPCrypto = 'tls';
 
     /**
      * Enable word-wrap
