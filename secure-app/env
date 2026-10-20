@@ -15,13 +15,13 @@
 #--------------------------------------------------------------------
 
 CI_ENVIRONMENT = production
-# CI_ENVIRONMENT = development
+#CI_ENVIRONMENT = development
 
 #--------------------------------------------------------------------
 # APP
 #--------------------------------------------------------------------
 
-app.baseURL = 'https://ace.h1x.com/'
+app.baseURL = 'https://allalliances.com/'
 
 # app.baseURL = ''
 # If you have trouble with `.`, you could also use `_`.

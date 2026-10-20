@@ -89,6 +89,19 @@
                         </a>
                     </div>
                 </div>
+
+                <!-- Wheel of Fortune -->
+                <a href="/wheel" class="flex flex-col justify-center p-6 bg-gradient-to-r from-amber-950/40 via-purple-950/40 to-slate-900/80 hover:bg-slate-800 border border-amber-500/40 hover:border-amber-400 rounded-xl transition-all duration-300 cursor-pointer shadow-lg hover:shadow-amber-900/30 group relative overflow-hidden h-32 md:col-span-2">
+                    <div class="absolute -right-4 -bottom-4 text-6xl opacity-20 group-hover:scale-110 group-hover:rotate-12 transition-transform duration-300">🎡</div>
+                    <div class="relative z-10">
+                        <div class="flex items-center gap-2 mb-1">
+                            <span class="text-xl">🎡</span>
+                            <h3 class="font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-rose-400 to-indigo-400 text-lg">Wheel of Fortune</h3>
+                            <span class="px-2 py-0.5 text-[10px] uppercase font-black bg-amber-500/20 text-amber-300 rounded-full border border-amber-500/30">Alliance Raffle</span>
+                        </div>
+                        <p class="text-xs text-slate-300">Live prize raffle wheel with interactive spin physics & winner celebrations</p>
+                    </div>
+                </a>
             </div>
 
             <!-- This Week's Gold Train Conductors Panel -->

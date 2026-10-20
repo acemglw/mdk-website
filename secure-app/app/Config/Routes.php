@@ -94,3 +94,13 @@ $routes->group('super_admin', ['filter' => 'pageAuth:super_admin'], static funct
     $routes->get('access-logs', 'SuperAdminController::accessLogs');
     $routes->post('access-logs/snapshot', 'SuperAdminController::generateLogSnapshot');
 });
+
+// Wheel of Fortune Routes (Requires standard authentication)
+$routes->group('wheel', ['filter' => 'pageAuth'], static function ($routes) {
+    $routes->get('', 'WheelController::index');
+    $routes->post('record-spin', 'WheelController::recordSpin');
+    $routes->post('add-spinner', 'WheelController::addSpinner');
+    $routes->post('remove-spinner', 'WheelController::removeSpinner');
+    $routes->post('clear-history', 'WheelController::clearHistory');
+});
+

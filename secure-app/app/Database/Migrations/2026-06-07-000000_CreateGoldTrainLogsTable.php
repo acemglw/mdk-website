@@ -4,7 +4,7 @@ namespace App\Database\Migrations;
 
 use CodeIgniter\Database\Migration;
 
-class CreateGoldTrainTable extends Migration
+class CreateGoldTrainLogsTable extends Migration
 {
     public function up()
     {

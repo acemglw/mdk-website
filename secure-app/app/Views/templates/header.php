@@ -60,7 +60,7 @@
                             
                             <!-- Events Dropdown Menu -->
                             <div class="dropdown relative inline-block">
-                                <button class="px-3 py-2 rounded-md text-sm font-medium text-slate-300 hover:bg-slate-800 hover:text-white flex items-center gap-1 <?= in_array($currentSeg, ['ds_planner', 'cs_planner', 'events', 'gold-train']) ? 'bg-slate-800 text-white shadow-inner' : '' ?>">
+                                <button class="px-3 py-2 rounded-md text-sm font-medium text-slate-300 hover:bg-slate-800 hover:text-white flex items-center gap-1 <?= in_array($currentSeg, ['ds_planner', 'cs_planner', 'events', 'gold-train', 'wheel']) ? 'bg-slate-800 text-white shadow-inner' : '' ?>">
                                     Events ▾
                                 </button>
                                 <div class="dropdown-menu absolute hidden pt-2 w-48 z-50">
@@ -70,6 +70,9 @@
                                         <a href="/cs_planner" class="block px-4 py-2 text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">⛰️ Canyon Storm</a>
                                         <a href="/gold-train" class="block px-4 py-2 text-sm text-amber-400 hover:bg-slate-700 hover:text-amber-300 transition-colors border-t border-slate-700/50">🚂 Polar Express</a>
                                         <a href="/gold-train/history" class="block px-4 py-2 text-sm text-amber-500 hover:bg-slate-700 hover:text-amber-400 transition-colors pl-8">🕰️ Train History</a>
+
+                                        <div class="px-3 py-1.5 text-[10px] font-black text-slate-500 uppercase tracking-wider bg-slate-800/50 border-y border-slate-700/50 mt-1">Alliance Fun</div>
+                                        <a href="/wheel" class="block px-4 py-2 text-sm text-amber-400 hover:bg-slate-700 hover:text-amber-300 transition-colors font-semibold">🎡 Wheel of Fortune</a>
 
                                         <div class="px-3 py-1.5 text-[10px] font-black text-slate-500 uppercase tracking-wider bg-slate-800/50 border-y border-slate-700/50 mt-1">Analytics</div>
                                         <a href="<?= session()->get('role') === 'admin' || session()->get('role') === 'super_admin' ? '/admin/events' : '/events/log' ?>" class="block px-4 py-2 text-sm text-emerald-400 hover:bg-slate-700 hover:text-emerald-300 transition-colors">📊 Event Tracker</a>
